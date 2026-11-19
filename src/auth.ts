@@ -17,6 +17,7 @@ export interface AuthRuntime extends OAuthRuntime {
   env?: Environment;
   now?: () => number;
   accountKey?: () => string;
+  verifyTimeoutMs?: number;
 }
 
 export interface HostAuthState {
@@ -45,8 +46,8 @@ interface VerifyResult {
 
 const VERIFY_TTL_MS = 60_000;
 const VERIFY_TIMEOUT_MS = 8_000;
-const MODEL_TTL_MS = 5 * 60_000;
 const USAGE_TIMEOUT_MS = 10_000;
+const MODEL_TTL_MS = 5 * 60_000;
 const MULTI_ACCOUNT_ERROR =
   "检测到多个 Capy 宿主账号。工具调用没有账号上下文，因此不会猜测使用哪个账号。请只保留一个 Capy 登录，或设置 CAPY_API_KEY 环境变量来明确工具使用的密钥；更改账号后请重新加载插件。";
 const LOGOUT_SCOPE =
@@ -197,21 +198,21 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
       state = { ...initial(), multiAccount: true, error: MULTI_ACCOUNT_ERROR };
       credential = next;
       cache = null;
-      modelCache = null;
-      return { credential: next, error: MULTI_ACCOUNT_ERROR };
+        return { credential: next, error: MULTI_ACCOUNT_ERROR };
     }
 
     if (credential?.bearer !== next.bearer || credential?.type !== next.type) {
       generation += 1;
       state = { ...initial(), key: next.bearer, authType: next.type };
       cache = null;
-      modelCache = null;
-    }
+      }
     credential = next;
     return { credential: next, error: multiAccount ? MULTI_ACCOUNT_ERROR : null };
   };
 
-  const verify = async (key: string): Promise<VerifyResult> => {
+  const verifyTimeoutMs = runtime.verifyTimeoutMs ?? VERIFY_TIMEOUT_MS;
+
+  const verify = async (key: string, signal?: AbortSignal): Promise<VerifyResult> => {
     const now = runtime.now?.() ?? Date.now();
     if (cache && cache.bearer === key && now - cache.at < VERIFY_TTL_MS) return cache.result;
 
@@ -220,9 +221,9 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
       const client = createCapyClient({
         apiKey: key,
         ...(runtime.fetchImpl !== undefined ? { fetchImpl: runtime.fetchImpl } : {}),
-        timeoutMs: VERIFY_TIMEOUT_MS,
+        timeoutMs: verifyTimeoutMs,
       });
-      const projects = await client.listProjects();
+      const projects = await client.listProjects({ signal });
       result = { ok: true, code: "ok", projectCount: projects.items.length, error: null };
     } catch (error) {
       if (error instanceof CapyError && error.code === "unauthorized") {
@@ -254,7 +255,7 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
           ok: false,
           code: "network",
           projectCount: null,
-          error: `只读验证请求超时（${VERIFY_TIMEOUT_MS / 1000} 秒内未完成 GET /api/v1/projects）。请检查网络后在 Capy 用法卡片中重试。`,
+          error: `只读验证请求超时（${verifyTimeoutMs / 1000} 秒内未完成 GET /api/v1/projects）。请检查网络后在 Capy 用法卡片中重试。`,
         };
       } else if (error instanceof CapyError && error.code === "aborted") {
         result = { ok: false, code: "network", projectCount: null, error: "验证已取消，未保存任何密钥。" };
@@ -269,6 +270,40 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
     }
     if (result.ok) cache = { bearer: key, at: now, result };
     return result;
+  };
+
+  const verifyOAuthAccess = async (access: string, signal?: AbortSignal): Promise<void> => {
+    const client = createCapyClient({
+      apiKey: access,
+      ...(runtime.fetchImpl !== undefined ? { fetchImpl: runtime.fetchImpl } : {}),
+      timeoutMs: verifyTimeoutMs,
+    });
+    try {
+      await client.listProjects({ signal });
+    } catch (error) {
+      if (error instanceof CapyError) {
+        if (error.code === "aborted") {
+          throw new Error("浏览器登录已取消，未保存 OAuth 凭据。");
+        }
+        if (error.code === "unauthorized") {
+          throw new Error(
+            "Capy 未接受该 OAuth access token（HTTP 401）；issuer 登录成功不等于 Capy 已授权，未保存登录。",
+          );
+        }
+        if (error.code === "forbidden") {
+          throw new Error(
+            "Capy 拒绝了该 OAuth token 的只读项目访问（HTTP 403）；未保存登录。",
+          );
+        }
+        if (error.code === "timeout") {
+          throw new Error("Capy 只读能力验证超时；未保存 OAuth 登录。");
+        }
+        if (error.code === "invalid_response") {
+          throw new Error("Capy 只读能力验证返回了不符合公开契约的响应；未保存 OAuth 登录。");
+        }
+      }
+      throw new Error("无法用该 OAuth token 验证 Capy 只读访问；未保存登录。");
+    }
   };
 
   const applyIfCurrent = (cred: Credential, gen: number, result: VerifyResult): boolean => {
@@ -307,28 +342,6 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
     } finally {
       modelInflight.delete(cred.bearer);
     }
-  };
-
-  const providerModels = (
-    catalog: ModelCatalog,
-    defaults: Record<string, unknown>,
-  ): Record<string, unknown> => {
-    const result: Record<string, unknown> = {};
-    for (const item of catalog.items) {
-      const existing = record(defaults[item.id]) ?? {};
-      result[item.id] = {
-        ...existing,
-        id: item.id,
-        name: item.name,
-        reasoning: item.reasoningModes.length > 0,
-        ...(item.reasoningModes.length > 0
-          ? { variants: Object.fromEntries(item.reasoningModes.map((mode) => [mode, {}])) }
-          : {}),
-        billing: item.billing,
-        route: item.route,
-      };
-    }
-    return result;
   };
 
   const credentialEnv = (): { credential: Credential | null; error: string | null } => {
@@ -512,7 +525,7 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
             if (context.signal?.aborted) {
               return { type: "failed", error: "登录已取消，未保存任何密钥。" };
             }
-            const result = await verify(key);
+            const result = await verify(key, context.signal);
             if (context.signal?.aborted) {
               cache = null;
               return { type: "failed", error: "登录已取消，未保存任何密钥。" };
@@ -522,7 +535,12 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
           },
         },
         ...(oauthSettings
-          ? [createBrowserOAuthMethod(oauthSettings, runtime)]
+          ? [
+              createBrowserOAuthMethod(oauthSettings, {
+                ...runtime,
+                verifyAccess: verifyOAuthAccess,
+              }),
+            ]
           : oauthConfig.kind === "invalid"
             ? [
                 {
@@ -552,6 +570,9 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
     },
     provider: {
       id: "capy",
+      // This version registers no models. The real public catalog is exposed by
+      // the list_models tool; the hook still verifies the account and keeps the
+      // catalog cache warm, but returns the (empty) provider model map.
       async models(
         provider: { models: Record<string, unknown> },
         context: { auth?: unknown } = {},
@@ -564,7 +585,7 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
 
         const gen = generation;
         try {
-          const catalog = await fetchModelCatalog(cred);
+          await fetchModelCatalog(cred);
           if (gen === generation && credential?.bearer === cred.bearer) {
             state = {
               ...state,
@@ -573,7 +594,7 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
               error: null,
             };
           }
-          return providerModels(catalog, provider.models);
+          return provider.models;
         } catch (error) {
           if (error instanceof CapyError && error.code === "unauthorized") {
             const current = gen === generation && credential?.bearer === cred.bearer;
@@ -586,13 +607,6 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
                 { signIn: "expired" },
               );
             }
-            if (modelCache && modelCache.bearer === cred.bearer) {
-              return providerModels(modelCache.catalog, provider.models);
-            }
-            return provider.models;
-          }
-          if (modelCache && modelCache.bearer === cred.bearer) {
-            return providerModels(modelCache.catalog, provider.models);
           }
           return provider.models;
         }

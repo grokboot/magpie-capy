@@ -24,7 +24,7 @@ This project was built from public documentation and synthetic tests. No live Ca
 
 ## Design decisions
 
-1. The provider hooks expose Capy's documented model catalog and real credit usage; they do not invent an inference API, context window, or model price.
+1. The provider hooks expose Capy's documented model catalog and real credit usage; they do not invent an inference API, context window, or model price. The catalog is not a completion adapter: host chat requests still follow the host's generic completion path, so `run_task` is the real execution path in this version.
 2. Fixed Capy API origin, no arbitrary base URL, redirects refused.
 3. Environment key compatible, with host-auth sign-in preferred when no env key.
 4. Strict runtime validation, bounded responses, bounded SSE, no automatic writes or retries.

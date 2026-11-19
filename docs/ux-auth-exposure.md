@@ -3,7 +3,7 @@
 ## Auth methods
 
 - **API Key**: a masked prompt is followed by one bounded read-only `GET /api/v1/projects` check. The host saves the key only after success. `CAPY_API_KEY` remains compatible and takes precedence.
-- **Browser OAuth/OIDC**: feature-gated and absent unless `CAPY_OAUTH_ISSUER`, `CAPY_OAUTH_CLIENT_ID`, and a loopback `CAPY_OAUTH_REDIRECT_URI` are configured. It uses OIDC discovery, S256 PKCE, state validation, a loopback callback, and `auth.refresh` via `refresh_token`. The label and docs say it is not a Capy official third-party client; Capy's `/api/v1` acceptance of that issuer/token is not verified by the public contract.
+- **Browser OAuth/OIDC**: feature-gated and absent unless `CAPY_OAUTH_ISSUER`, `CAPY_OAUTH_CLIENT_ID`, and a loopback `CAPY_OAUTH_REDIRECT_URI` are configured. It uses OIDC discovery, S256 PKCE, state validation, a loopback callback, and `auth.refresh` via `refresh_token`. After exchange it calls `GET /api/v1/projects` with the access token; only a Capy-accepted token returns success, and rejection/timeout/network failure/cancellation saves nothing. The label and docs say it is not a Capy official third-party client; Capy's client/redirect/audience registration is not verified by the public contract.
 
 Capy's own desktop sign-in (Clerk → `capy://app/` → `clientJwt`/`sessionId` → `mintToken` with `rotatedJwt`) is statically confirmed. It is not exposed as an official plugin contract because a third-party client/redirect/audience registration is not public. Do not call the optional OAuth flow “Capy official web authorization”.
 
@@ -12,6 +12,8 @@ Multiple host accounts fail closed. Local logout removes only the local credenti
 ## Provider hooks and badge
 
 `provider.models` reads the documented `GET /api/v1/models` and maps `id`, `name`, and `reasoningModes` (as variants). It does not invent context window, output limit, tool support, or model pricing. `auth.usage` reads the documented balance and period report; `null` is not rendered as 0.
+
+The catalog is not yet a working chat adapter: this version registers **no models** in the provider. The real catalog is exposed by the `list_models` tool, and execution is through `run_task`; the provider hook still verifies the account and keeps a catalog cache but returns the (empty) provider model map, so the host never sends chat to a non-existent Capy completion route.
 
 Whether Magpie shows a `Provider` badge is host classification. Models are now real because Capy's public API documents a model catalog and model selection, not to force a badge. A `Tools` badge is still expected for the task tools. `Tools, hidden from agents` / `工具，已对智能体隐藏` is a host exposure setting; use **Give to agents** / **交给智能体** and confirm the MCP assignment. Manual endpoint: `http://127.0.0.1:3425/mcp/magpie/tools`.
 
@@ -34,4 +36,4 @@ Writes are off by default. The non-secret Options example is `{"allowWrites": fa
 
 ## Release and verification status
 
-The 0.2.3 artifact and tag are unchanged. 0.3.0 is a new preview with 156 offline mock tests and typecheck passing. No live Capy auth/balance/model/task/write request was made in this implementation turn, so no live acceptance is claimed. GitHub installation is supported; npm publication is pending authentication. `Discover` labels the plugin **Unofficial**.
+The 0.2.3 artifact and tag are unchanged. 0.3.0 is a new preview with 163 offline mock tests and typecheck passing. No live Capy auth/balance/model/task/write request was made in this implementation turn, so no live acceptance is claimed. GitHub installation is supported; npm publication is pending authentication. `Discover` labels the plugin **Unofficial**.

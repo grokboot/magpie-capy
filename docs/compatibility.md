@@ -12,13 +12,14 @@ This file separates local verification from live-service validation. It is not a
 
 - No live Capy login, model catalog, balance, task, SSE, message or write request was made.
 - No real Capy organization API Key or OAuth token was used.
-- Capy's `/api/v1` acceptance of an optional OAuth/OIDC issuer's token, and Capy's registration of a third-party client/redirect/audience, are not confirmed by the public contract.
+- No host chat-completion request to `capy/<model>` was made. This version registers no provider models, so the host does not route chat to Capy's non-existent completion endpoint; `list_models` exposes the catalog and real work goes through `run_task`.
+- Capy's `/api/v1` acceptance of an optional OAuth/OIDC issuer's token, and Capy's registration of a third-party client/redirect/audience, are not confirmed by the public contract. The plugin now checks the exchanged token with `GET /api/v1/projects` before returning success; that check is mock-tested, not live-tested.
 - Before 0.3.0, 0.2.3 had a controlled live check of native API-key authorization and a read-only `list_projects` (HTTP 200, empty). Because the result was empty, subagent/SSE/message/write paths were not live-tested. That historical check does not cover the new model/usage/task paths.
-- 0.2.3's GUI check covered name, icon, Chinese README, 10 tools, authorized status and `allowWrites=false` persistence. GUI local logout and prompt cancel were not verified. 0.3.0 has 15 tools and no new GUI acceptance is claimed.
+- 0.2.3's GUI check covered name, icon, Chinese README, 10 tools, authorized status and `allowWrites=false` persistence. GUI local logout and prompt cancel were not verified. 0.3.0 has 17 tools and no new GUI acceptance is claimed.
 
 ## OAuth boundary
 
-The optional browser method is a real public OIDC authorization-code + PKCE implementation with a loopback callback and refresh-token rotation. It is not a Capy official third-party client. Capy's desktop Clerk → `capy://app/` → `mintToken`/`rotatedJwt` chain is statically confirmed, but this plugin does not read runtime session stores, reuse the Capy desktop scheme, or claim that the desktop session JWT is accepted by `/api/v1`.
+The optional browser method is a real public OIDC authorization-code + PKCE implementation with a loopback callback, refresh-token rotation, and a post-exchange `GET /api/v1/projects` check with the access token. It is not a Capy official third-party client. Capy's desktop Clerk → `capy://app/` → `mintToken`/`rotatedJwt` chain is statically confirmed, but this plugin does not read runtime session stores, reuse the Capy desktop scheme, or claim that the desktop session JWT is accepted by `/api/v1`.
 
 ## Public route and releases
 

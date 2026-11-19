@@ -50,13 +50,14 @@ All paths are from the Capy OpenAPI 3.1 document and checked by `test/contract.t
 ## Provider hooks
 
 - `provider.models` calls `GET /api/v1/models` per account, caches for 5 minutes, and maps only documented fields. It does not invent context windows, output limits, tool support, or a Provider badge.
+- **Blocking gap:** the provider declaration and loader still leave host chat requests on the generic completion path (`https://api.capy.ai` + the host's completion route). Capy's public OpenAPI has no completion endpoint, and this plugin implements no chat-completion-to-thread adapter. The catalog and explicit `model` selection are real; task execution is through `run_task`.
 - `auth.usage` reads `GET /api/v1/usage/balance`, then the current subscription period's `GET /api/v1/usage`. `remainingDollars` is a remaining USD credit amount; `unlimited` and `null` (no credit balance) stay distinct. The period report has no entitlement denominator, so it is display-only rather than a fabricated used-percent. Failures say the balance is unknown and why.
 
 ## Authentication
 
 The default method is an organization API Key with a masked prompt; `authorize` performs one bounded read-only project-list call before the host persists it. The key is only sent as a bearer to `https://api.capy.ai`.
 
-An optional browser method appears only when `CAPY_OAUTH_ISSUER`, `CAPY_OAUTH_CLIENT_ID`, and a loopback `CAPY_OAUTH_REDIRECT_URI` are set. It runs OIDC discovery, S256 PKCE, state validation, a loopback callback, code exchange, and refresh_token rotation. It is explicitly not a Capy official third-party client; Capy's acceptance of the issuer's token is not verified by the public contract. Capy's own desktop Clerk → `capy://app/` → mintToken chain is statically confirmed but not implemented as this plugin's contract.
+An optional browser method appears only when `CAPY_OAUTH_ISSUER`, `CAPY_OAUTH_CLIENT_ID`, and a loopback `CAPY_OAUTH_REDIRECT_URI` are set. It runs OIDC discovery, S256 PKCE, state validation, a loopback callback, code exchange, and refresh_token rotation. After exchange it calls `GET /api/v1/projects` with the access token; only a Capy-accepted token returns success. A Capy rejection, timeout, network failure, or cancellation returns failure, so the host saves nothing. It is explicitly not a Capy official third-party client; Capy's registration/audience is not verified by the public contract. Capy's own desktop Clerk → `capy://app/` → mintToken chain is statically confirmed but not implemented as this plugin's contract.
 
 `CAPY_API_KEY` still overrides host auth. Multiple host accounts fail closed. Local logout removes the local credential only; it is not server-side revocation.
 
@@ -72,4 +73,4 @@ Fixed origin, `redirect: "manual"`, `cache: "no-store"`, `credentials: "omit"`, 
 
 ## Deliberate non-goals
 
-No fabricated chat-completion endpoint, model context/tool metadata, zero balance, entitlement/used-percent, or completion state. No private desktop IPC, session-store scraping, CDP/GUI control, device credential reuse, or claim that the optional OAuth token is a Capy official delegation until that is verified.
+No fabricated chat-completion endpoint, model context/tool metadata, zero balance, entitlement/used-percent, or completion state. No provider chat-completion adapter in this version; the model catalog is discovery/selection data and `run_task` is the execution path. No private desktop IPC, session-store scraping, CDP/GUI control, device credential reuse, or claim that the optional OAuth token is a Capy official delegation until that is verified.

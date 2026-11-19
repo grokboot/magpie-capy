@@ -7,7 +7,7 @@
 ## Credential handling
 
 - The default credential is an organization API key supplied through Magpie's auth hook or `CAPY_API_KEY`; `CAPY_API_KEY` takes precedence. The plugin does not read `CAPY_API_KEY_FILE`, dotfiles, browser profiles, cookies, desktop session stores, package options, or tool arguments for credentials.
-- The optional browser method stores only the OAuth `access`, `refresh`, and `expires` fields the host gives back. It reads `CAPY_OAUTH_*` configuration from the host environment. `CAPY_OAUTH_CLIENT_SECRET` is optional and is used only in token POST bodies; it is never logged or returned.
+- The optional browser method stores only the OAuth `access`, `refresh`, and `expires` fields the host gives back, and only after the access token passes a bounded read-only `GET /api/v1/projects` check. It reads `CAPY_OAUTH_*` configuration from the host environment. `CAPY_OAUTH_CLIENT_SECRET` is optional and is used only in token POST bodies; it is never logged or returned.
 - The bearer is sent only in the `Authorization` header to the fixed Capy origin. It is never placed in a URL, tool result, thrown error, or log message.
 - A missing, empty, or malformed key produces a message naming the source and the manual key-creation path; it never prints the supplied value.
 - Create API keys manually in Capy Settings → API. Treat them as secrets and rotate if exposed. OAuth tokens are bearer credentials too; use a dedicated client and audience.

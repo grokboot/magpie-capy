@@ -116,6 +116,18 @@ const MODEL_SELECTION_SCHEMA = {
 } as const;
 
 export const TOOL_SCHEMAS = Object.freeze({
+  list_models: {
+    type: "object",
+    properties: {},
+    required: [],
+    additionalProperties: false,
+  },
+  get_usage: {
+    type: "object",
+    properties: {},
+    required: [],
+    additionalProperties: false,
+  },
   list_projects: {
     type: "object",
     properties: {},
@@ -414,6 +426,39 @@ export function createCapyToolsPlugin(runtime: ToolRuntime = {}) {
       });
 
     const tools: Record<string, ToolDefinition> = {
+      list_models: {
+        description:
+          "List the documented Capy model catalog for this account, including each model id, name, billing route, reasoning modes, and Capy's default-model metadata. Read-only. This is catalog/selection data; use run_task or create_thread/send_message to execute work.",
+        args: TOOL_SCHEMAS.list_models,
+        async execute(raw, ctx) {
+          validateToolArgs(raw, []);
+          return client().listModels({ signal: ctx?.abort });
+        },
+      },
+
+      get_usage: {
+        description:
+          "Read the real Capy credit balance and current-period usage report. Read-only. A null remainingDollars is not zero; a report failure is returned as reportError while the balance remains visible.",
+        args: TOOL_SCHEMAS.get_usage,
+        async execute(raw, ctx) {
+          validateToolArgs(raw, []);
+          const capy = client();
+          const balance = await capy.getUsageBalance({ signal: ctx?.abort });
+          let report = null;
+          let reportError: string | null = null;
+          try {
+            report = await capy.getUsageReport({
+              ...(balance.periodStart !== null ? { from: balance.periodStart } : {}),
+              ...(balance.periodEnd !== null ? { to: balance.periodEnd } : {}),
+              signal: ctx?.abort,
+            });
+          } catch (error) {
+            reportError = error instanceof CapyError ? error.message : "周期用量读取失败。";
+          }
+          return { balance, report, ...(reportError !== null ? { reportError } : {}) };
+        },
+      },
+
       list_projects: {
         description:
           "List Capy projects visible to the configured API key. Read-only. Use the returned project id with list_threads or create_thread.",

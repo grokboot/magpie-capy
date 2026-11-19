@@ -76,8 +76,10 @@ describe("plugin entry and tool schemas", () => {
       "create_thread",
       "get_task",
       "get_thread",
+      "get_usage",
       "interrupt_thread",
       "list_messages",
+      "list_models",
       "list_projects",
       "list_subagent_messages",
       "list_subagents",
@@ -96,8 +98,10 @@ describe("plugin entry and tool schemas", () => {
       "create_thread",
       "get_task",
       "get_thread",
+      "get_usage",
       "interrupt_thread",
       "list_messages",
+      "list_models",
       "list_projects",
       "list_subagent_messages",
       "list_subagents",
@@ -620,5 +624,67 @@ describe("model selection and task lifecycle tools", () => {
       "writes_disabled",
     );
     expect(stub.calls).toHaveLength(0);
+  });
+});
+
+describe("model catalog and usage tools", () => {
+  test("list_models returns the documented catalog and get_usage returns balance plus report", async () => {
+    const model = {
+      id: "capy-coder",
+      name: "Capy Coder",
+      billing: "Capy API",
+      route: "capy",
+      reasoningModes: ["high"],
+      fast: false,
+      pro: false,
+      ultrafast: false,
+    };
+    const balance = {
+      currency: "USD",
+      remainingDollars: 3.5,
+      unlimited: false,
+      periodStart: "2026-11-01T00:00:00.000Z",
+      periodEnd: "2026-12-01T00:00:00.000Z",
+    };
+    const report = {
+      from: balance.periodStart,
+      to: balance.periodEnd,
+      totals: {
+        llmDollars: 1,
+        imageDollars: 0,
+        vmDollars: 0,
+        totalDollars: 1,
+        standaloneTokenFeeDollars: 0,
+        billedDollars: 1,
+      },
+      tokens: { inputTokens: 1, outputTokens: 2, cacheReadTokens: 0, cacheWriteTokens: 0 },
+      members: [],
+      models: [],
+      images: [],
+    };
+    const stub = makeFetch((url) => {
+      if (url.pathname === "/api/v1/models") {
+        return jsonResponse({ items: [model], default: { modelId: model.id, source: "personal", skipped: [] } });
+      }
+      if (url.pathname === "/api/v1/usage/balance") return jsonResponse(balance);
+      if (url.pathname === "/api/v1/usage") return jsonResponse(report);
+      return jsonResponse({ _tag: "unexpected" }, 400);
+    });
+    const tools = await stubTools(stub);
+    const models = (await tools.list_models!.execute({})) as { items: { id: string }[] };
+    expect(models.items[0]?.id).toBe("capy-coder");
+    expect(stub.calls[0]?.url.pathname).toBe("/api/v1/models");
+
+    const usage = (await tools.get_usage!.execute({})) as {
+      balance: { remainingDollars: number };
+      report: { totals: { totalDollars: number } };
+    };
+    expect(usage.balance.remainingDollars).toBe(3.5);
+    expect(usage.report.totals.totalDollars).toBe(1);
+    expect(stub.calls.map((call) => call.url.pathname)).toEqual([
+      "/api/v1/models",
+      "/api/v1/usage/balance",
+      "/api/v1/usage",
+    ]);
   });
 });

@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { createServer, type Server } from "node:http";
-import type { FetchLike } from "./http.ts";
+import { CapyError } from "./errors.ts";
+import { readTextBounded, type FetchLike } from "./http.ts";
 
 export interface OAuthSettings {
   issuer: string;
@@ -49,6 +50,7 @@ export interface OAuthRuntime {
   now?: () => number;
   timeoutMs?: number;
   callbackTimeoutMs?: number;
+  verifyAccess?: (access: string, signal?: AbortSignal) => Promise<void>;
 }
 
 export interface OAuthAuthState {
@@ -128,8 +130,15 @@ export function createPkce(): { verifier: string; challenge: string } {
 }
 
 async function boundedJson(response: Response): Promise<Record<string, unknown>> {
-  const text = await response.text();
-  if (text.length > MAX_JSON_BYTES) throw new Error("OAuth 响应过大。");
+  let text: string;
+  try {
+    text = await readTextBounded(response, MAX_JSON_BYTES);
+  } catch (error) {
+    if (error instanceof CapyError && error.code === "response_too_large") {
+      throw new Error("OAuth 响应过大。");
+    }
+    throw error;
+  }
   try {
     const value = JSON.parse(text) as unknown;
     if (value === null || typeof value !== "object" || Array.isArray(value)) {
@@ -380,20 +389,23 @@ export function createBrowserOAuthMethod(
       return {
         url: url.toString(),
         instructions:
-          "在浏览器完成登录。回调只发送到本机回环地址；不是 Capy 官方第三方 client，audience 与 /api/v1 接受性需由配置方确认。",
+          "在浏览器完成登录。回调只发送到本机回环地址；不是 Capy 官方第三方 client。token 会先用于一次只读项目验证，Capy 拒绝则不保存。",
         method: "auto",
         async callback(_receivedCode, callbackContext = {}) {
+          const signal = callbackContext.signal ?? context.signal;
           try {
             const code = await loopback.wait(callbackContext.signal);
             if (!code) return { type: "failed", error: "OAuth 回调缺少 code。" };
-            return await exchangeCode(
+            const success = await exchangeCode(
               settings,
               discovery,
               code,
               verifier,
               runtime,
-              callbackContext.signal ?? context.signal,
+              signal,
             );
+            if (runtime.verifyAccess) await runtime.verifyAccess(success.access, signal);
+            return success;
           } catch (error) {
             return {
               type: "failed",

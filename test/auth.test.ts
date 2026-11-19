@@ -123,7 +123,7 @@ describe("Capy auth hooks", () => {
     expect(provider.models).toEqual({});
     expect(hooks.auth.provider).toBe("capy");
     expect(pkg.name).toBe("magpie-capy");
-    expect(Object.keys(hooks.tool)).toHaveLength(15);
+    expect(Object.keys(hooks.tool)).toHaveLength(17);
 
     const usage = await hooks.auth.usage(async () => apiAuth());
     expect(usage.plan).toBe("Capy");
@@ -138,24 +138,14 @@ describe("Capy auth hooks", () => {
     expect(stub.calls).toHaveLength(0);
   });
 
-  test("provider.models reads the documented model catalog and maps only documented fields", async () => {
+  test("provider.models verifies the catalog but registers no uncallable models", async () => {
     const stub = defaultFetch();
     const { auth, hooks } = fixture(stub.fetchImpl);
     const models = {};
-    const out = await hooks.provider.models({ models }, { auth: await apiAuth() }) as Record<
-      string,
-      Record<string, unknown>
-    >;
+    const out = await hooks.provider.models({ models }, { auth: await apiAuth() });
 
-    expect(out["capy-coder"]).toMatchObject({
-      id: "capy-coder",
-      name: "Capy Coder",
-      reasoning: true,
-      billing: "Capy API",
-      route: "capy",
-    });
-    expect(out["capy-coder"]?.variants).toEqual({ low: {}, high: {} });
-    expect(out["capy-coder"]?.limit).toBeUndefined();
+    expect(out).toBe(models);
+    expect(out).toEqual({});
     expect(auth.hostApiKey()).toBe(HOST_KEY);
     expect(auth.hostAuthState()).toMatchObject({ verified: true, error: null });
     expect(stub.calls).toHaveLength(1);
@@ -167,11 +157,8 @@ describe("Capy auth hooks", () => {
   test("an OAuth host credential uses the same model catalog and bearer", async () => {
     const stub = defaultFetch();
     const { auth, hooks } = fixture(stub.fetchImpl);
-    const out = await hooks.provider.models({ models: {} }, { auth: await oauthAuth() }) as Record<
-      string,
-      unknown
-    >;
-    expect(out["capy-coder"]).toBeDefined();
+    const out = await hooks.provider.models({ models: {} }, { auth: await oauthAuth() });
+    expect(out).toEqual({});
     expect(auth.hostAuthState().authType).toBe("oauth");
     expect(auth.hostApiKey()).toBe("oauth_access");
   });
@@ -247,7 +234,7 @@ describe("Capy auth hooks", () => {
   test("usage verification caches are per hook instance and a network failure is explicit", async () => {
     const first = fixture(defaultFetch().fetchImpl);
     await first.hooks.auth.usage(async () => apiAuth());
-    expect((await first.hooks.provider.models({ models: {} }, { auth: await apiAuth() }))["capy-coder"]).toBeDefined();
+    expect((await first.hooks.provider.models({ models: {} }, { auth: await apiAuth() }))).toEqual({});
 
     const failed = fixture(
       makeFetch(() => {
@@ -456,12 +443,25 @@ describe("Capy sign-in host contract", () => {
     expect(JSON.stringify(usage)).not.toContain(HOST_KEY);
   });
 
-  test("cancelling a validation saves nothing and clears its cached result", async () => {
+  test("cancelling a validation saves nothing and aborts the request", async () => {
     const pending = deferred();
-    const auth = createCapyAuth({ fetchImpl: async () => pending.promise });
+    let requestSignal: AbortSignal | undefined;
+    let markStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const auth = createCapyAuth({
+      fetchImpl: async (_input, init = {}) => {
+        requestSignal = init.signal ?? undefined;
+        markStarted();
+        return pending.promise;
+      },
+    });
     const controller = new AbortController();
     const request = apiMethod(auth).authorize?.({ key: HOST_KEY }, { signal: controller.signal });
+    await started;
     controller.abort();
+    expect(requestSignal?.aborted).toBe(true);
     pending.resolve(jsonResponse({ items: [project] }));
 
     const result = await request;
@@ -470,6 +470,27 @@ describe("Capy sign-in host contract", () => {
     expect(auth.hostApiKey()).toBeNull();
     expect(auth.hostAuthState().verified).toBe(false);
     expect(auth.hostAuthState().checkedAt).toBeNull();
+  });
+
+  test("a timed-out validation saves nothing", async () => {
+    const stub = makeFetch(
+      (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener(
+            "abort",
+            () => reject(new DOMException("Aborted", "AbortError")),
+            { once: true },
+          );
+        }),
+    );
+    const auth = createCapyAuth({ fetchImpl: stub.fetchImpl, verifyTimeoutMs: 10 });
+    const result = await apiMethod(auth).authorize?.({ key: HOST_KEY });
+
+    expect(result?.type).toBe("failed");
+    expect(result?.error).toContain("超时");
+    expect(auth.hostApiKey()).toBeNull();
+    expect(auth.hostAuthState().verified).toBe(false);
+    expect(stub.calls).toHaveLength(1);
   });
 
   test("an already-cancelled validation makes no network call", async () => {

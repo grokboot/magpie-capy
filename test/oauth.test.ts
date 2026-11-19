@@ -189,6 +189,193 @@ describe("browser OAuth flow", () => {
   });
 });
 
+describe("OAuth Capy capability check", () => {
+  test("returns success only after the access token passes a Capy read check", async () => {
+    const port = await freePort();
+    const redirectUri = `http://127.0.0.1:${port}/callback`;
+    const stub = makeFetch((url) => {
+      if (url.pathname === "/.well-known/openid-configuration") return jsonResponse(discovery());
+      if (url.pathname === "/token") return jsonResponse({ access_token: "oauth_access_token" });
+      return jsonResponse({ _tag: "unexpected" }, 404);
+    });
+    const checked: string[] = [];
+    const method = createBrowserOAuthMethod(
+      { ...settings, redirectUri },
+      {
+        fetchImpl: stub.fetchImpl,
+        callbackTimeoutMs: 5_000,
+        verifyAccess: async (access, signal) => {
+          checked.push(access);
+          expect(signal).toBeDefined();
+        },
+      },
+    );
+    const controller = new AbortController();
+    const start = await method.authorize(undefined, { signal: controller.signal });
+    const state = new URL(start.url).searchParams.get("state")!;
+    const pending = start.callback(undefined, { signal: controller.signal });
+    await fetch(`${redirectUri}?code=auth_code&state=${encodeURIComponent(state)}`);
+    const result = await pending;
+
+    expect(result.type).toBe("success");
+    expect(checked).toEqual(["oauth_access_token"]);
+  });
+
+  test("a Capy rejection fails the sign-in instead of returning a token", async () => {
+    const port = await freePort();
+    const redirectUri = `http://127.0.0.1:${port}/callback`;
+    const stub = makeFetch((url) => {
+      if (url.pathname === "/.well-known/openid-configuration") return jsonResponse(discovery());
+      if (url.pathname === "/token") return jsonResponse({ access_token: "oauth_access_token" });
+      return jsonResponse({}, 200);
+    });
+    const method = createBrowserOAuthMethod(
+      { ...settings, redirectUri },
+      {
+        fetchImpl: stub.fetchImpl,
+        callbackTimeoutMs: 5_000,
+        verifyAccess: async () => {
+          throw new Error("Capy 未接受该 OAuth access token（HTTP 401）；未保存登录。");
+        },
+      },
+    );
+    const start = await method.authorize();
+    const state = new URL(start.url).searchParams.get("state")!;
+    const pending = start.callback(undefined, {});
+    await fetch(`${redirectUri}?code=auth_code&state=${encodeURIComponent(state)}`);
+    const result = await pending;
+
+    expect(result.type).toBe("failed");
+    if (result.type === "failed") expect(result.error).toContain("未接受");
+  });
+
+  test("cancelling the Capy capability check fails the sign-in", async () => {
+    const port = await freePort();
+    const redirectUri = `http://127.0.0.1:${port}/callback`;
+    const stub = makeFetch((url) => {
+      if (url.pathname === "/.well-known/openid-configuration") return jsonResponse(discovery());
+      if (url.pathname === "/token") return jsonResponse({ access_token: "oauth_access_token" });
+      return jsonResponse({}, 404);
+    });
+    let markVerifying!: () => void;
+    const verifying = new Promise<void>((resolve) => {
+      markVerifying = resolve;
+    });
+    const method = createBrowserOAuthMethod(
+      { ...settings, redirectUri },
+      {
+        fetchImpl: stub.fetchImpl,
+        callbackTimeoutMs: 5_000,
+        verifyAccess: async (_access, signal) => {
+          markVerifying();
+          await new Promise<void>((_resolve, reject) => {
+            if (signal?.aborted) {
+              reject(new Error("Capy 验证已取消，未保存登录。"));
+              return;
+            }
+            signal?.addEventListener(
+              "abort",
+              () => reject(new Error("Capy 验证已取消，未保存登录。")),
+              { once: true },
+            );
+          });
+        },
+      },
+    );
+    const controller = new AbortController();
+    const start = await method.authorize(undefined, { signal: controller.signal });
+    const state = new URL(start.url).searchParams.get("state")!;
+    const pending = start.callback(undefined, { signal: controller.signal });
+    await fetch(`${redirectUri}?code=auth_code&state=${encodeURIComponent(state)}`);
+    await verifying;
+    controller.abort();
+    const result = await pending;
+
+    expect(result.type).toBe("failed");
+    if (result.type === "failed") expect(result.error).toContain("取消");
+  });
+
+  test("the auth hook verifies the exchanged token against Capy's project read", async () => {
+    const port = await freePort();
+    const redirectUri = `http://127.0.0.1:${port}/callback`;
+    const stub = makeFetch((url, init) => {
+      if (url.pathname === "/.well-known/openid-configuration") return jsonResponse(discovery());
+      if (url.pathname === "/token") return jsonResponse({ access_token: "oauth_access_token" });
+      if (url.pathname === "/api/v1/projects") {
+        const bearer = new Headers(init.headers).get("authorization");
+        return bearer === "Bearer oauth_access_token"
+          ? jsonResponse({ items: [{ id: "project_alpha", name: "Alpha" }] })
+          : jsonResponse({ _tag: "capy/Unauthorized" }, 401);
+      }
+      return jsonResponse({}, 404);
+    });
+    const auth = createCapyAuth({
+      fetchImpl: stub.fetchImpl,
+      env: {
+        CAPY_OAUTH_ISSUER: settings.issuer,
+        CAPY_OAUTH_CLIENT_ID: settings.clientId,
+        CAPY_OAUTH_REDIRECT_URI: redirectUri,
+      },
+    });
+    const method = auth.hooks.auth.methods[1] as unknown as {
+      authorize(): Promise<{
+        url: string;
+        callback(code?: string, context?: { signal?: AbortSignal }): Promise<
+          { type: "success"; access: string } | { type: "failed"; error: string }
+        >;
+      }>;
+    };
+    const start = await method.authorize();
+    const state = new URL(start.url).searchParams.get("state")!;
+    const pending = start.callback(undefined, {});
+    await fetch(`${redirectUri}?code=auth_code&state=${encodeURIComponent(state)}`);
+    const result = await pending;
+
+    expect(result).toMatchObject({ type: "success", access: "oauth_access_token" });
+    const projectCall = stub.calls.find((call) => call.url.pathname === "/api/v1/projects")!;
+    expect(new Headers(projectCall.init.headers).get("authorization")).toBe(
+      "Bearer oauth_access_token",
+    );
+  });
+
+  test("a Capy 401 after token exchange keeps the OAuth sign-in failed", async () => {
+    const port = await freePort();
+    const redirectUri = `http://127.0.0.1:${port}/callback`;
+    const stub = makeFetch((url) => {
+      if (url.pathname === "/.well-known/openid-configuration") return jsonResponse(discovery());
+      if (url.pathname === "/token") return jsonResponse({ access_token: "oauth_access_token" });
+      if (url.pathname === "/api/v1/projects") {
+        return jsonResponse({ _tag: "capy/Unauthorized" }, 401);
+      }
+      return jsonResponse({}, 404);
+    });
+    const auth = createCapyAuth({
+      fetchImpl: stub.fetchImpl,
+      env: {
+        CAPY_OAUTH_ISSUER: settings.issuer,
+        CAPY_OAUTH_CLIENT_ID: settings.clientId,
+        CAPY_OAUTH_REDIRECT_URI: redirectUri,
+      },
+    });
+    const method = auth.hooks.auth.methods[1] as unknown as {
+      authorize(): Promise<{
+        url: string;
+        callback(code?: string, context?: { signal?: AbortSignal }): Promise<
+          { type: "success"; access: string } | { type: "failed"; error: string }
+        >;
+      }>;
+    };
+    const start = await method.authorize();
+    const state = new URL(start.url).searchParams.get("state")!;
+    const pending = start.callback(undefined, {});
+    await fetch(`${redirectUri}?code=auth_code&state=${encodeURIComponent(state)}`);
+    const result = await pending;
+
+    expect(result.type).toBe("failed");
+    if (result.type === "failed") expect(result.error).toContain("HTTP 401");
+  });
+});
+
 describe("OAuth refresh", () => {
   test("uses refresh_token grant and returns only rotated fields", async () => {
     const stub = makeFetch((url) => {
