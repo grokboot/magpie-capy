@@ -5,6 +5,251 @@
   "version": "1.0.0",
   "server": "https://api.capy.ai",
   "operations": {
+    "messages.interrupt": {
+      "method": "POST",
+      "path": "/api/v1/threads/{threadId}/interrupt",
+      "operationId": "messages.interrupt",
+      "parameters": [
+        {
+          "name": "threadId",
+          "in": "path",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "request": null,
+      "response200": {
+        "$ref": "#/components/schemas/AdmitReceiptEncoded"
+      },
+      "errorTags": [
+        {
+          "status": "401",
+          "description": "capy/Unauthorized",
+          "headers": {}
+        },
+        {
+          "status": "403",
+          "description": "capy/Forbidden",
+          "headers": {}
+        },
+        {
+          "status": "404",
+          "description": "capy/ThreadNotFound",
+          "headers": {}
+        },
+        {
+          "status": "429",
+          "description": "capy/RateLimited",
+          "headers": {
+            "retry-after": {
+              "schema": {
+                "type": "integer"
+              },
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    "messages.list": {
+      "method": "GET",
+      "path": "/api/v1/threads/{threadId}/messages",
+      "operationId": "messages.list",
+      "parameters": [
+        {
+          "name": "threadId",
+          "in": "path",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "after",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "allOf": [
+              {
+                "minLength": 26
+              },
+              {
+                "maxLength": 26
+              }
+            ],
+            "description": "Exclusive forward event-ID cursor from cursor. Without either bound, returns the oldest page."
+          }
+        },
+        {
+          "name": "before",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "allOf": [
+              {
+                "minLength": 26
+              },
+              {
+                "maxLength": 26
+              }
+            ],
+            "description": "Exclusive backward event-ID cursor from beforeCursor. Without after, returns the nearest older page."
+          }
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "request": null,
+      "response200": {
+        "$ref": "#/components/schemas/TranscriptPageEncoded"
+      },
+      "errorTags": [
+        {
+          "status": "401",
+          "description": "capy/Unauthorized",
+          "headers": {}
+        },
+        {
+          "status": "403",
+          "description": "capy/Forbidden",
+          "headers": {}
+        },
+        {
+          "status": "404",
+          "description": "capy/ThreadNotFound",
+          "headers": {}
+        },
+        {
+          "status": "429",
+          "description": "capy/RateLimited",
+          "headers": {
+            "retry-after": {
+              "schema": {
+                "type": "integer"
+              },
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    "messages.send": {
+      "method": "POST",
+      "path": "/api/v1/threads/{threadId}/message",
+      "operationId": "messages.send",
+      "parameters": [
+        {
+          "name": "threadId",
+          "in": "path",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "request": {
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/SendMessageRequest"
+        },
+        "fields": [
+          "clientKey",
+          "delivery",
+          "editOf",
+          "files",
+          "model",
+          "pullRequestAuthor",
+          "switchTo",
+          "text"
+        ],
+        "requiredFields": [
+          "text"
+        ]
+      },
+      "response200": {
+        "$ref": "#/components/schemas/AdmitReceiptEncoded"
+      },
+      "errorTags": [
+        {
+          "status": "400",
+          "description": "ModelSelection.Rejected | capy/InvalidRequest",
+          "headers": {}
+        },
+        {
+          "status": "401",
+          "description": "capy/Unauthorized",
+          "headers": {}
+        },
+        {
+          "status": "403",
+          "description": "capy/DeviceAccessDenied | capy/Forbidden",
+          "headers": {}
+        },
+        {
+          "status": "404",
+          "description": "capy/ThreadNotFound | capy/FileNotFound",
+          "headers": {}
+        },
+        {
+          "status": "409",
+          "description": "capy/EditNotAllowed",
+          "headers": {}
+        },
+        {
+          "status": "429",
+          "description": "capy/RateLimited",
+          "headers": {
+            "retry-after": {
+              "schema": {
+                "type": "integer"
+              },
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    "models.list": {
+      "method": "GET",
+      "path": "/api/v1/models",
+      "operationId": "models.list",
+      "parameters": [],
+      "request": null,
+      "response200": {
+        "$ref": "#/components/schemas/ModelListEncoded"
+      },
+      "errorTags": [
+        {
+          "status": "401",
+          "description": "capy/Unauthorized",
+          "headers": {}
+        },
+        {
+          "status": "403",
+          "description": "capy/Forbidden",
+          "headers": {}
+        },
+        {
+          "status": "429",
+          "description": "capy/RateLimited",
+          "headers": {
+            "retry-after": {
+              "schema": {
+                "type": "integer"
+              },
+              "required": true
+            }
+          }
+        }
+      ]
+    },
     "projects.list": {
       "method": "GET",
       "path": "/api/v1/projects",
@@ -39,40 +284,205 @@
         }
       ]
     },
-    "threads.list": {
+    "streams.task": {
       "method": "GET",
-      "path": "/api/v1/threads",
-      "operationId": "threads.list",
+      "path": "/api/v1/tasks/{taskId}/stream",
+      "operationId": "streams.task",
       "parameters": [
         {
-          "name": "projectId",
-          "in": "query",
+          "name": "taskId",
+          "in": "path",
           "schema": {
             "type": "string"
           },
           "required": true
         },
         {
+          "name": "last-event-id",
+          "in": "header",
+          "schema": {
+            "type": "string",
+            "description": "The last `id:` a client read; the committed lane resumes after it."
+          }
+        },
+        {
+          "name": "after",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "description": "Exclusive event-ID cursor to start the committed lane after; the Last-Event-ID header wins when both are present."
+          }
+        },
+        {
+          "name": "until",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "description": "`run`: close the stream with `done` after the run in progress ends, or at once when the thread is not working."
+          }
+        }
+      ],
+      "request": null,
+      "response200": null,
+      "errorTags": [
+        {
+          "status": "400",
+          "description": "capy/InvalidRequest",
+          "headers": {}
+        },
+        {
+          "status": "401",
+          "description": "capy/Unauthorized",
+          "headers": {}
+        },
+        {
+          "status": "403",
+          "description": "capy/Forbidden",
+          "headers": {}
+        },
+        {
+          "status": "404",
+          "description": "capy/TaskNotFound",
+          "headers": {}
+        },
+        {
+          "status": "429",
+          "description": "capy/RateLimited",
+          "headers": {
+            "retry-after": {
+              "schema": {
+                "type": "integer"
+              },
+              "required": true
+            }
+          }
+        },
+        {
+          "status": "503",
+          "description": "capy/StreamUnavailable",
+          "headers": {}
+        }
+      ]
+    },
+    "streams.thread": {
+      "method": "GET",
+      "path": "/api/v1/threads/{threadId}/stream",
+      "operationId": "streams.thread",
+      "parameters": [
+        {
+          "name": "threadId",
+          "in": "path",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "last-event-id",
+          "in": "header",
+          "schema": {
+            "type": "string",
+            "description": "The last `id:` a client read; the committed lane resumes after it."
+          }
+        },
+        {
+          "name": "after",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "description": "Exclusive event-ID cursor to start the committed lane after; the Last-Event-ID header wins when both are present."
+          }
+        },
+        {
+          "name": "until",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "description": "`run`: close the stream with `done` after the run in progress ends, or at once when the thread is not working."
+          }
+        },
+        {
+          "name": "frames",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "description": "`subagent`: send each subagent's lifecycle as a `subagent` frame. Defaults to `task`, the original `task` frame."
+          }
+        }
+      ],
+      "request": null,
+      "response200": null,
+      "errorTags": [
+        {
+          "status": "400",
+          "description": "capy/InvalidRequest",
+          "headers": {}
+        },
+        {
+          "status": "401",
+          "description": "capy/Unauthorized",
+          "headers": {}
+        },
+        {
+          "status": "403",
+          "description": "capy/Forbidden",
+          "headers": {}
+        },
+        {
+          "status": "404",
+          "description": "capy/ThreadNotFound",
+          "headers": {}
+        },
+        {
+          "status": "429",
+          "description": "capy/RateLimited",
+          "headers": {
+            "retry-after": {
+              "schema": {
+                "type": "integer"
+              },
+              "required": true
+            }
+          }
+        },
+        {
+          "status": "503",
+          "description": "capy/StreamUnavailable",
+          "headers": {}
+        }
+      ]
+    },
+    "subagents.list": {
+      "method": "GET",
+      "path": "/api/v1/threads/{threadId}/subagents",
+      "operationId": "subagents.list",
+      "parameters": [
+        {
+          "name": "threadId",
+          "in": "path",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "after",
+          "in": "query",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
           "name": "limit",
           "in": "query",
           "schema": {
             "type": "integer"
-          },
-          "required": false
-        },
-        {
-          "name": "cursor",
-          "in": "query",
-          "schema": {
-            "type": "string",
-            "pattern": "^\\d{1,15}:.+"
-          },
-          "required": false
+          }
         }
       ],
       "request": null,
       "response200": {
-        "$ref": "#/components/schemas/ThreadPageEncoded"
+        "$ref": "#/components/schemas/SubagentPageEncoded"
       },
       "errorTags": [
         {
@@ -87,7 +497,257 @@
         },
         {
           "status": "404",
-          "description": "capy/ProjectNotFound",
+          "description": "capy/ThreadNotFound",
+          "headers": {}
+        },
+        {
+          "status": "429",
+          "description": "capy/RateLimited",
+          "headers": {
+            "retry-after": {
+              "schema": {
+                "type": "integer"
+              },
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    "subagents.messages": {
+      "method": "GET",
+      "path": "/api/v1/subagents/{subagentId}/messages",
+      "operationId": "subagents.messages",
+      "parameters": [
+        {
+          "name": "subagentId",
+          "in": "path",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "after",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "allOf": [
+              {
+                "minLength": 26
+              },
+              {
+                "maxLength": 26
+              }
+            ]
+          }
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "request": null,
+      "response200": {
+        "$ref": "#/components/schemas/MessagePageEncoded"
+      },
+      "errorTags": [
+        {
+          "status": "401",
+          "description": "capy/Unauthorized",
+          "headers": {}
+        },
+        {
+          "status": "403",
+          "description": "capy/Forbidden",
+          "headers": {}
+        },
+        {
+          "status": "404",
+          "description": "capy/SubagentNotFound",
+          "headers": {}
+        },
+        {
+          "status": "429",
+          "description": "capy/RateLimited",
+          "headers": {
+            "retry-after": {
+              "schema": {
+                "type": "integer"
+              },
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    "tasks.get": {
+      "method": "GET",
+      "path": "/api/v1/tasks/{taskId}",
+      "operationId": "tasks.get",
+      "parameters": [
+        {
+          "name": "taskId",
+          "in": "path",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "request": null,
+      "response200": {
+        "$ref": "#/components/schemas/TaskEncoded"
+      },
+      "errorTags": [
+        {
+          "status": "401",
+          "description": "capy/Unauthorized",
+          "headers": {}
+        },
+        {
+          "status": "403",
+          "description": "capy/Forbidden",
+          "headers": {}
+        },
+        {
+          "status": "404",
+          "description": "capy/TaskNotFound",
+          "headers": {}
+        },
+        {
+          "status": "429",
+          "description": "capy/RateLimited",
+          "headers": {
+            "retry-after": {
+              "schema": {
+                "type": "integer"
+              },
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    "tasks.list": {
+      "method": "GET",
+      "path": "/api/v1/threads/{threadId}/tasks",
+      "operationId": "tasks.list",
+      "parameters": [
+        {
+          "name": "threadId",
+          "in": "path",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "after",
+          "in": "query",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "request": null,
+      "response200": {
+        "$ref": "#/components/schemas/TaskPageEncoded"
+      },
+      "errorTags": [
+        {
+          "status": "401",
+          "description": "capy/Unauthorized",
+          "headers": {}
+        },
+        {
+          "status": "403",
+          "description": "capy/Forbidden",
+          "headers": {}
+        },
+        {
+          "status": "404",
+          "description": "capy/ThreadNotFound",
+          "headers": {}
+        },
+        {
+          "status": "429",
+          "description": "capy/RateLimited",
+          "headers": {
+            "retry-after": {
+              "schema": {
+                "type": "integer"
+              },
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    "tasks.messages": {
+      "method": "GET",
+      "path": "/api/v1/tasks/{taskId}/messages",
+      "operationId": "tasks.messages",
+      "parameters": [
+        {
+          "name": "taskId",
+          "in": "path",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "after",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "allOf": [
+              {
+                "minLength": 26
+              },
+              {
+                "maxLength": 26
+              }
+            ]
+          }
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "request": null,
+      "response200": {
+        "$ref": "#/components/schemas/MessagePageEncoded"
+      },
+      "errorTags": [
+        {
+          "status": "401",
+          "description": "capy/Unauthorized",
+          "headers": {}
+        },
+        {
+          "status": "403",
+          "description": "capy/Forbidden",
+          "headers": {}
+        },
+        {
+          "status": "404",
+          "description": "capy/TaskNotFound",
           "headers": {}
         },
         {
@@ -231,65 +891,38 @@
         }
       ]
     },
-    "messages.list": {
+    "threads.list": {
       "method": "GET",
-      "path": "/api/v1/threads/{threadId}/messages",
-      "operationId": "messages.list",
+      "path": "/api/v1/threads",
+      "operationId": "threads.list",
       "parameters": [
         {
-          "name": "threadId",
-          "in": "path",
+          "name": "projectId",
+          "in": "query",
           "schema": {
             "type": "string"
           },
           "required": true
-        },
-        {
-          "name": "after",
-          "in": "query",
-          "schema": {
-            "type": "string",
-            "allOf": [
-              {
-                "minLength": 26
-              },
-              {
-                "maxLength": 26
-              }
-            ],
-            "description": "Exclusive forward event-ID cursor from cursor. Without either bound, returns the oldest page."
-          },
-          "required": false
-        },
-        {
-          "name": "before",
-          "in": "query",
-          "schema": {
-            "type": "string",
-            "allOf": [
-              {
-                "minLength": 26
-              },
-              {
-                "maxLength": 26
-              }
-            ],
-            "description": "Exclusive backward event-ID cursor from beforeCursor. Without after, returns the nearest older page."
-          },
-          "required": false
         },
         {
           "name": "limit",
           "in": "query",
           "schema": {
             "type": "integer"
-          },
-          "required": false
+          }
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "pattern": "^\\d{1,15}:.+"
+          }
         }
       ],
       "request": null,
       "response200": {
-        "$ref": "#/components/schemas/TranscriptPageEncoded"
+        "$ref": "#/components/schemas/ThreadPageEncoded"
       },
       "errorTags": [
         {
@@ -304,7 +937,7 @@
         },
         {
           "status": "404",
-          "description": "capy/ThreadNotFound",
+          "description": "capy/ProjectNotFound",
           "headers": {}
         },
         {
@@ -321,163 +954,14 @@
         }
       ]
     },
-    "messages.send": {
-      "method": "POST",
-      "path": "/api/v1/threads/{threadId}/message",
-      "operationId": "messages.send",
-      "parameters": [
-        {
-          "name": "threadId",
-          "in": "path",
-          "schema": {
-            "type": "string"
-          },
-          "required": true
-        }
-      ],
-      "request": {
-        "required": true,
-        "schema": {
-          "$ref": "#/components/schemas/SendMessageRequest"
-        },
-        "fields": [
-          "clientKey",
-          "delivery",
-          "editOf",
-          "files",
-          "model",
-          "pullRequestAuthor",
-          "switchTo",
-          "text"
-        ],
-        "requiredFields": [
-          "text"
-        ]
-      },
-      "response200": {
-        "$ref": "#/components/schemas/AdmitReceiptEncoded"
-      },
-      "errorTags": [
-        {
-          "status": "400",
-          "description": "ModelSelection.Rejected | capy/InvalidRequest",
-          "headers": {}
-        },
-        {
-          "status": "401",
-          "description": "capy/Unauthorized",
-          "headers": {}
-        },
-        {
-          "status": "403",
-          "description": "capy/DeviceAccessDenied | capy/Forbidden",
-          "headers": {}
-        },
-        {
-          "status": "404",
-          "description": "capy/ThreadNotFound | capy/FileNotFound",
-          "headers": {}
-        },
-        {
-          "status": "409",
-          "description": "capy/EditNotAllowed",
-          "headers": {}
-        },
-        {
-          "status": "429",
-          "description": "capy/RateLimited",
-          "headers": {
-            "retry-after": {
-              "schema": {
-                "type": "integer"
-              },
-              "required": true
-            }
-          }
-        }
-      ]
-    },
-    "messages.interrupt": {
-      "method": "POST",
-      "path": "/api/v1/threads/{threadId}/interrupt",
-      "operationId": "messages.interrupt",
-      "parameters": [
-        {
-          "name": "threadId",
-          "in": "path",
-          "schema": {
-            "type": "string"
-          },
-          "required": true
-        }
-      ],
-      "request": null,
-      "response200": {
-        "$ref": "#/components/schemas/AdmitReceiptEncoded"
-      },
-      "errorTags": [
-        {
-          "status": "401",
-          "description": "capy/Unauthorized",
-          "headers": {}
-        },
-        {
-          "status": "403",
-          "description": "capy/Forbidden",
-          "headers": {}
-        },
-        {
-          "status": "404",
-          "description": "capy/ThreadNotFound",
-          "headers": {}
-        },
-        {
-          "status": "429",
-          "description": "capy/RateLimited",
-          "headers": {
-            "retry-after": {
-              "schema": {
-                "type": "integer"
-              },
-              "required": true
-            }
-          }
-        }
-      ]
-    },
-    "subagents.list": {
+    "usage.balance": {
       "method": "GET",
-      "path": "/api/v1/threads/{threadId}/subagents",
-      "operationId": "subagents.list",
-      "parameters": [
-        {
-          "name": "threadId",
-          "in": "path",
-          "schema": {
-            "type": "string"
-          },
-          "required": true
-        },
-        {
-          "name": "after",
-          "in": "query",
-          "schema": {
-            "type": "string"
-          },
-          "required": false
-        },
-        {
-          "name": "limit",
-          "in": "query",
-          "schema": {
-            "type": "integer"
-          },
-          "required": false
-        }
-      ],
+      "path": "/api/v1/usage/balance",
+      "operationId": "usage.balance",
+      "parameters": [],
       "request": null,
       "response200": {
-        "$ref": "#/components/schemas/SubagentPageEncoded"
+        "$ref": "#/components/schemas/UsageBalanceEncoded"
       },
       "errorTags": [
         {
@@ -491,11 +975,6 @@
           "headers": {}
         },
         {
-          "status": "404",
-          "description": "capy/ThreadNotFound",
-          "headers": {}
-        },
-        {
           "status": "429",
           "description": "capy/RateLimited",
           "headers": {
@@ -506,134 +985,37 @@
               "required": true
             }
           }
+        },
+        {
+          "status": "503",
+          "description": "capy/BillingAuthorityUnavailable",
+          "headers": {}
         }
       ]
     },
-    "subagents.messages": {
+    "usage.get": {
       "method": "GET",
-      "path": "/api/v1/subagents/{subagentId}/messages",
-      "operationId": "subagents.messages",
+      "path": "/api/v1/usage",
+      "operationId": "usage.get",
       "parameters": [
         {
-          "name": "subagentId",
-          "in": "path",
+          "name": "from",
+          "in": "query",
           "schema": {
             "type": "string"
-          },
-          "required": true
+          }
         },
         {
-          "name": "after",
+          "name": "to",
           "in": "query",
           "schema": {
-            "type": "string",
-            "allOf": [
-              {
-                "minLength": 26
-              },
-              {
-                "maxLength": 26
-              }
-            ]
-          },
-          "required": false
-        },
-        {
-          "name": "limit",
-          "in": "query",
-          "schema": {
-            "type": "integer"
-          },
-          "required": false
-        }
-      ],
-      "request": null,
-      "response200": {
-        "$ref": "#/components/schemas/MessagePageEncoded"
-      },
-      "errorTags": [
-        {
-          "status": "401",
-          "description": "capy/Unauthorized",
-          "headers": {}
-        },
-        {
-          "status": "403",
-          "description": "capy/Forbidden",
-          "headers": {}
-        },
-        {
-          "status": "404",
-          "description": "capy/SubagentNotFound",
-          "headers": {}
-        },
-        {
-          "status": "429",
-          "description": "capy/RateLimited",
-          "headers": {
-            "retry-after": {
-              "schema": {
-                "type": "integer"
-              },
-              "required": true
-            }
+            "type": "string"
           }
         }
-      ]
-    },
-    "streams.thread": {
-      "method": "GET",
-      "path": "/api/v1/threads/{threadId}/stream",
-      "operationId": "streams.thread",
-      "parameters": [
-        {
-          "name": "threadId",
-          "in": "path",
-          "schema": {
-            "type": "string"
-          },
-          "required": true
-        },
-        {
-          "name": "last-event-id",
-          "in": "header",
-          "schema": {
-            "type": "string",
-            "description": "The last `id:` a client read; the committed lane resumes after it."
-          },
-          "required": false
-        },
-        {
-          "name": "after",
-          "in": "query",
-          "schema": {
-            "type": "string",
-            "description": "Exclusive event-ID cursor to start the committed lane after; the Last-Event-ID header wins when both are present."
-          },
-          "required": false
-        },
-        {
-          "name": "until",
-          "in": "query",
-          "schema": {
-            "type": "string",
-            "description": "`run`: close the stream with `done` after the run in progress ends, or at once when the thread is not working."
-          },
-          "required": false
-        },
-        {
-          "name": "frames",
-          "in": "query",
-          "schema": {
-            "type": "string",
-            "description": "`subagent`: send each subagent's lifecycle as a `subagent` frame. Defaults to `task`, the original `task` frame."
-          },
-          "required": false
-        }
       ],
       "request": null,
       "response200": {
-        "$ref": "#/components/schemas/StreamEvent"
+        "$ref": "#/components/schemas/UsageReportEncoded"
       },
       "errorTags": [
         {
@@ -652,11 +1034,6 @@
           "headers": {}
         },
         {
-          "status": "404",
-          "description": "capy/ThreadNotFound",
-          "headers": {}
-        },
-        {
           "status": "429",
           "description": "capy/RateLimited",
           "headers": {
@@ -667,16 +1044,66 @@
               "required": true
             }
           }
-        },
-        {
-          "status": "503",
-          "description": "capy/StreamUnavailable",
-          "headers": {}
         }
       ]
     }
   },
   "schemas": {
+    "AdmitReceiptEncoded": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "allOf": [
+            {
+              "minLength": 26
+            },
+            {
+              "maxLength": 26
+            }
+          ]
+        },
+        "deduped": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "deduped"
+      ],
+      "additionalProperties": false
+    },
+    "CaptainAvatar": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "preset",
+            "emoji"
+          ]
+        },
+        "value": {
+          "type": "string"
+        },
+        "background": {
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "library": {
+          "type": "string",
+          "pattern": "^cimg_[0-9A-HJKMNP-TV-Z]{26}$"
+        }
+      },
+      "required": [
+        "kind",
+        "value",
+        "background"
+      ],
+      "additionalProperties": false
+    },
     "CreateThreadRequest": {
       "type": "object",
       "properties": {
@@ -759,324 +1186,159 @@
       ],
       "additionalProperties": false
     },
-    "SendMessageRequest": {
+    "DefaultedModel": {
       "type": "object",
       "properties": {
-        "text": {
+        "modelId": {
           "type": "string"
         },
-        "files": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "personal",
+            "service_user",
+            "slack",
+            "linear",
+            "org",
+            "platform"
+          ],
+          "description": "Which default supplied the model: `personal` is the human's own default, `service_user` the service user's, `slack` the person's Slack default, `linear` the person's Linear default, `org` the organization default, and `platform` Capy's default."
+        },
+        "skipped": {
           "type": "array",
           "items": {
-            "$ref": "#/components/schemas/MessageFile"
+            "$ref": "#/components/schemas/ModelDefaultSkip"
           },
-          "description": "Files to attach, such as screenshots or screen recordings, each uploaded first through `POST /files`. The files together must stay within 2 GiB."
+          "description": "Earlier defaults in the chain that could not run when the message was admitted, in chain order."
+        }
+      },
+      "required": [
+        "modelId",
+        "source",
+        "skipped"
+      ],
+      "additionalProperties": false
+    },
+    "DefaultedModel_1": {
+      "type": "object",
+      "properties": {
+        "modelId": {
+          "type": "string"
         },
-        "model": {
-          "$ref": "#/components/schemas/ModelSelection"
-        },
-        "delivery": {
+        "source": {
           "type": "string",
           "enum": [
-            "queue",
-            "steer",
-            "interrupt"
+            "personal",
+            "service_user",
+            "slack",
+            "linear",
+            "org",
+            "platform"
           ],
-          "description": "How the message reaches a working thread. `interrupt` (the default) cuts the running step and makes the message the next input; `steer` lands it at the agent's next step with nothing cancelled; `queue` waits until the current work finishes."
+          "description": "Which default supplied the model: `personal` is the human's own default, `service_user` the service user's, `slack` the person's Slack default, `linear` the person's Linear default, `org` the organization default, and `platform` Capy's default."
         },
-        "clientKey": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 64,
-          "description": "A key you choose for this send, unique per message. A retried send with the same key, from the same key's principal to the same thread, posts nothing new and answers the first send's message id with `deduped: true`."
-        },
-        "editOf": {
-          "type": "string",
-          "allOf": [
-            {
-              "minLength": 26
-            },
-            {
-              "maxLength": 26
-            }
-          ],
-          "description": "Resend one of your earlier messages as a new version. The thread resets to that message before the agent reads the new text; the rows after it stay stored and can be switched back to."
-        },
-        "switchTo": {
-          "type": "string",
-          "allOf": [
-            {
-              "minLength": 26
-            },
-            {
-              "maxLength": 26
-            }
-          ],
-          "description": "Make this superseded version of an edited message live before the send lands, so the message answers on that branch."
-        },
-        "pullRequestAuthor": {
-          "anyOf": [
-            {
-              "type": "string",
-              "enum": [
-                "user",
-                "capy"
-              ]
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "Set the thread's pull request author: `capy` or `user` sets it, null clears it back to the Git identity preference, and absent leaves it unchanged. It applies when the agent picks this message up, so a queued message never changes a pull request opened before it."
-        }
-      },
-      "required": [
-        "text"
-      ],
-      "additionalProperties": false
-    },
-    "AdmitReceiptEncoded": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "allOf": [
-            {
-              "minLength": 26
-            },
-            {
-              "maxLength": 26
-            }
-          ]
-        },
-        "deduped": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "id",
-        "deduped"
-      ],
-      "additionalProperties": false
-    },
-    "ProjectListEncoded": {
-      "type": "object",
-      "properties": {
-        "items": {
+        "skipped": {
           "type": "array",
           "items": {
-            "$ref": "#/components/schemas/ProjectEncoded"
-          }
+            "$ref": "#/components/schemas/ModelDefaultSkip"
+          },
+          "description": "Earlier defaults in the chain that could not run when the message was admitted, in chain order."
         }
       },
       "required": [
-        "items"
+        "modelId",
+        "source",
+        "skipped"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "The model a thread created with this key and no `model` starts on, and the default that supplied it."
     },
-    "ThreadPageEncoded": {
+    "DeviceTarget": {
       "type": "object",
       "properties": {
-        "items": {
-          "type": "array",
-          "items": {
-            "$ref": "#/components/schemas/ThreadEncoded"
-          }
+        "deviceId": {
+          "type": "string"
         },
-        "cursor": {
+        "workspace": {
           "anyOf": [
             {
-              "type": "string",
-              "pattern": "^\\d{1,15}:.+"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "required": [
-        "items",
-        "cursor"
-      ],
-      "additionalProperties": false
-    },
-    "TranscriptPageEncoded": {
-      "type": "object",
-      "properties": {
-        "items": {
-          "type": "array",
-          "items": {
-            "$ref": "#/components/schemas/MessageEncoded"
-          }
-        },
-        "cursor": {
-          "anyOf": [
-            {
-              "type": "string",
-              "allOf": [
-                {
-                  "minLength": 26
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "linked"
+                  ]
                 },
-                {
-                  "maxLength": 26
-                }
-              ]
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "Opaque exclusive event-ID cursor for after. Stable across compaction. Null when no newer events remain. An unchanged cursor means unsettled messages still block forward paging. Retry after they settle."
-        },
-        "beforeCursor": {
-          "anyOf": [
-            {
-              "type": "string",
-              "allOf": [
-                {
-                  "minLength": 26
+                "root": {
+                  "type": "string"
                 },
-                {
-                  "maxLength": 26
+                "roots": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
                 }
-              ]
+              },
+              "required": [
+                "kind",
+                "root"
+              ],
+              "additionalProperties": false
             },
             {
-              "type": "null"
-            }
-          ],
-          "description": "Opaque exclusive event-ID cursor for before. Stable across compaction. Null when no older events remain."
-        }
-      },
-      "required": [
-        "items",
-        "cursor",
-        "beforeCursor"
-      ],
-      "additionalProperties": false
-    },
-    "MessagePageEncoded": {
-      "type": "object",
-      "properties": {
-        "items": {
-          "type": "array",
-          "items": {
-            "$ref": "#/components/schemas/MessageEncoded"
-          }
-        },
-        "cursor": {
-          "anyOf": [
-            {
-              "type": "string",
-              "allOf": [
-                {
-                  "minLength": 26
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "worktree"
+                  ]
                 },
-                {
-                  "maxLength": 26
+                "base": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "repos": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "startFromOrigin": {
+                  "type": "boolean"
+                },
+                "root": {
+                  "type": "string"
                 }
-              ]
-            },
-            {
-              "type": "null"
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false
             }
           ]
         }
       },
       "required": [
-        "items",
-        "cursor"
+        "deviceId",
+        "workspace"
       ],
       "additionalProperties": false
     },
-    "SubagentPageEncoded": {
+    "EnvironmentVariableWrite": {
       "type": "object",
       "properties": {
-        "items": {
-          "type": "array",
-          "items": {
-            "$ref": "#/components/schemas/SubagentEncoded"
-          }
-        },
-        "cursor": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "required": [
-        "items",
-        "cursor"
-      ],
-      "additionalProperties": false
-    },
-    "SubagentEncoded": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "threadId": {
-          "type": "string"
-        },
-        "parentId": {
-          "type": "string"
-        },
-        "subagentPath": {
-          "type": "string"
-        },
-        "taskPath": {
-          "type": "string"
-        },
-        "projectId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "title": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "status": {
+        "name": {
           "type": "string",
-          "enum": [
-            "working",
-            "waiting",
-            "idle",
-            "done",
-            "failed"
-          ]
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
         },
-        "archived": {
-          "type": "boolean"
-        },
-        "usage": {
-          "$ref": "#/components/schemas/UsageTotalsEncoded"
-        },
-        "createdAt": {
+        "value": {
           "type": "string"
         },
-        "updatedAt": {
-          "type": "string"
-        },
-        "lastActivityAt": {
+        "description": {
           "anyOf": [
             {
               "type": "string"
@@ -1088,19 +1350,8 @@
         }
       },
       "required": [
-        "id",
-        "threadId",
-        "parentId",
-        "subagentPath",
-        "taskPath",
-        "projectId",
-        "title",
-        "status",
-        "archived",
-        "usage",
-        "createdAt",
-        "updatedAt",
-        "lastActivityAt"
+        "name",
+        "value"
       ],
       "additionalProperties": false
     },
@@ -1379,6 +1630,712 @@
       ],
       "additionalProperties": false
     },
+    "MessageFile": {
+      "type": "object",
+      "properties": {
+        "fileId": {
+          "type": "string",
+          "description": "The `fileId` `POST /files` returned. The file's bytes must already be uploaded."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 1024,
+          "description": "The file name shown on the attachment."
+        }
+      },
+      "required": [
+        "fileId",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "MessagePageEncoded": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/MessageEncoded"
+          }
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "allOf": [
+                {
+                  "minLength": 26
+                },
+                {
+                  "maxLength": 26
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "cursor"
+      ],
+      "additionalProperties": false
+    },
+    "MessageSender": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The sending thread's or subagent's id, the same id the threads and subagents endpoints take."
+        },
+        "relation": {
+          "type": "string",
+          "enum": [
+            "parent",
+            "ancestor",
+            "captain",
+            "peer"
+          ],
+          "description": "The sender's relation to this thread: `parent` or `ancestor` owns this subagent, `captain` is the Captain directing this thread, and `peer` is any other thread, including a crew thread messaging its Captain."
+        }
+      },
+      "required": [
+        "id",
+        "relation"
+      ],
+      "additionalProperties": false
+    },
+    "ModelDefaultSkip": {
+      "type": "object",
+      "properties": {
+        "modelId": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "personal",
+            "service_user",
+            "slack",
+            "linear",
+            "org",
+            "platform"
+          ],
+          "description": "Which default supplied the model: `personal` is the human's own default, `service_user` the service user's, `slack` the person's Slack default, `linear` the person's Linear default, `org` the organization default, and `platform` Capy's default."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why this default could not run."
+        }
+      },
+      "required": [
+        "modelId",
+        "source",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "ModelEncoded": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The catalog id to pass as `model.modelId`."
+        },
+        "name": {
+          "type": "string"
+        },
+        "billing": {
+          "type": "string",
+          "description": "The connection that pays for this model: `Capy API` for Capy credits, or the subscription or key that serves it."
+        },
+        "route": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "member_seat",
+                "member_credential",
+                "org_credential",
+                "capy"
+              ]
+            },
+            {
+              "$ref": "#/components/schemas/UnsupportedMember_10"
+            }
+          ],
+          "description": "`capy` for Capy credits, `org_credential` for an organization key, `member_credential` for the key owner's own key, and `member_seat` for a connected subscription."
+        },
+        "reasoningModes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "none",
+              "instant",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        },
+        "fast": {
+          "type": "boolean"
+        },
+        "pro": {
+          "type": "boolean"
+        },
+        "ultrafast": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "billing",
+        "route",
+        "reasoningModes",
+        "fast",
+        "pro",
+        "ultrafast"
+      ],
+      "additionalProperties": false
+    },
+    "ModelListEncoded": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/ModelEncoded"
+          }
+        },
+        "default": {
+          "$ref": "#/components/schemas/DefaultedModel_1"
+        }
+      },
+      "required": [
+        "items",
+        "default"
+      ],
+      "additionalProperties": false
+    },
+    "ModelSelection": {
+      "type": "object",
+      "properties": {
+        "modelId": {
+          "type": "string"
+        },
+        "reasoningMode": {
+          "type": "string",
+          "enum": [
+            "none",
+            "instant",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        },
+        "modes": {
+          "type": "object",
+          "properties": {
+            "fast": {
+              "type": "boolean"
+            },
+            "pro": {
+              "type": "boolean"
+            },
+            "ultrafast": {
+              "type": "boolean"
+            },
+            "daybreak": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "modelId"
+      ],
+      "additionalProperties": false
+    },
+    "ProjectEncoded": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "code": {
+          "type": "string",
+          "allOf": [
+            {
+              "minLength": 1
+            },
+            {
+              "maxLength": 255
+            }
+          ]
+        },
+        "visibility": {
+          "type": "string",
+          "enum": [
+            "org",
+            "private"
+          ]
+        },
+        "repos": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/ProjectRepoEncoded"
+          }
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "code",
+        "visibility",
+        "repos",
+        "createdAt",
+        "updatedAt"
+      ],
+      "additionalProperties": false
+    },
+    "ProjectListEncoded": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/ProjectEncoded"
+          }
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false
+    },
+    "ProjectRepoEncoded": {
+      "type": "object",
+      "properties": {
+        "repoFullName": {
+          "type": "string"
+        },
+        "baseBranch": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "primary",
+            "lazy"
+          ]
+        }
+      },
+      "required": [
+        "repoFullName",
+        "baseBranch",
+        "mode"
+      ],
+      "additionalProperties": false
+    },
+    "SendMessageRequest": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/MessageFile"
+          },
+          "description": "Files to attach, such as screenshots or screen recordings, each uploaded first through `POST /files`. The files together must stay within 2 GiB."
+        },
+        "model": {
+          "$ref": "#/components/schemas/ModelSelection"
+        },
+        "delivery": {
+          "type": "string",
+          "enum": [
+            "queue",
+            "steer",
+            "interrupt"
+          ],
+          "description": "How the message reaches a working thread. `interrupt` (the default) cuts the running step and makes the message the next input; `steer` lands it at the agent's next step with nothing cancelled; `queue` waits until the current work finishes."
+        },
+        "clientKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "A key you choose for this send, unique per message. A retried send with the same key, from the same key's principal to the same thread, posts nothing new and answers the first send's message id with `deduped: true`."
+        },
+        "editOf": {
+          "type": "string",
+          "allOf": [
+            {
+              "minLength": 26
+            },
+            {
+              "maxLength": 26
+            }
+          ],
+          "description": "Resend one of your earlier messages as a new version. The thread resets to that message before the agent reads the new text; the rows after it stay stored and can be switched back to."
+        },
+        "switchTo": {
+          "type": "string",
+          "allOf": [
+            {
+              "minLength": 26
+            },
+            {
+              "maxLength": 26
+            }
+          ],
+          "description": "Make this superseded version of an edited message live before the send lands, so the message answers on that branch."
+        },
+        "pullRequestAuthor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "user",
+                "capy"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Set the thread's pull request author: `capy` or `user` sets it, null clears it back to the Git identity preference, and absent leaves it unchanged. It applies when the agent picks this message up, so a queued message never changes a pull request opened before it."
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "SubagentEncoded": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "parentId": {
+          "type": "string"
+        },
+        "subagentPath": {
+          "type": "string"
+        },
+        "taskPath": {
+          "type": "string"
+        },
+        "projectId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "working",
+            "waiting",
+            "idle",
+            "done",
+            "failed"
+          ]
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "usage": {
+          "$ref": "#/components/schemas/UsageTotalsEncoded"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "lastActivityAt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "threadId",
+        "parentId",
+        "subagentPath",
+        "taskPath",
+        "projectId",
+        "title",
+        "status",
+        "archived",
+        "usage",
+        "createdAt",
+        "updatedAt",
+        "lastActivityAt"
+      ],
+      "additionalProperties": false
+    },
+    "SubagentPageEncoded": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/SubagentEncoded"
+          }
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "cursor"
+      ],
+      "additionalProperties": false
+    },
+    "TaskEncoded": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "parentId": {
+          "type": "string"
+        },
+        "taskPath": {
+          "type": "string"
+        },
+        "projectId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "working",
+            "waiting",
+            "idle",
+            "done",
+            "failed"
+          ]
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "usage": {
+          "$ref": "#/components/schemas/UsageTotalsEncoded"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "lastActivityAt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "threadId",
+        "parentId",
+        "taskPath",
+        "projectId",
+        "title",
+        "status",
+        "archived",
+        "usage",
+        "createdAt",
+        "updatedAt",
+        "lastActivityAt"
+      ],
+      "additionalProperties": false
+    },
+    "TaskPageEncoded": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/TaskEncoded"
+          }
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "cursor"
+      ],
+      "additionalProperties": false
+    },
+    "ThreadAsk": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "conversation",
+            "environment",
+            "mcp",
+            "credits",
+            "desktop",
+            "feedback",
+            "terminal"
+          ]
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "causeKey": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "key",
+        "kind",
+        "text",
+        "causeKey"
+      ],
+      "additionalProperties": false
+    },
+    "ThreadCaptain": {
+      "type": "object",
+      "properties": {
+        "jamId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "avatar": {
+          "$ref": "#/components/schemas/CaptainAvatar"
+        }
+      },
+      "required": [
+        "jamId",
+        "name",
+        "avatar"
+      ],
+      "additionalProperties": false
+    },
     "ThreadEncoded": {
       "type": "object",
       "properties": {
@@ -1577,6 +2534,662 @@
         "mentionCount",
         "owed",
         "member"
+      ],
+      "additionalProperties": false
+    },
+    "ThreadLinearIssue": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "key",
+        "url"
+      ],
+      "additionalProperties": false
+    },
+    "ThreadPageEncoded": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/ThreadEncoded"
+          }
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\d{1,15}:.+"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "cursor"
+      ],
+      "additionalProperties": false
+    },
+    "TranscriptPageEncoded": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/MessageEncoded"
+          }
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "allOf": [
+                {
+                  "minLength": 26
+                },
+                {
+                  "maxLength": 26
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Opaque exclusive event-ID cursor for after. Stable across compaction. Null when no newer events remain. An unchanged cursor means unsettled messages still block forward paging. Retry after they settle."
+        },
+        "beforeCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "allOf": [
+                {
+                  "minLength": 26
+                },
+                {
+                  "maxLength": 26
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Opaque exclusive event-ID cursor for before. Stable across compaction. Null when no older events remain."
+        }
+      },
+      "required": [
+        "items",
+        "cursor",
+        "beforeCursor"
+      ],
+      "additionalProperties": false
+    },
+    "UnsupportedMember_10": {
+      "type": "string"
+    },
+    "UsageBalanceEncoded": {
+      "type": "object",
+      "properties": {
+        "currency": {
+          "type": "string",
+          "enum": [
+            "USD"
+          ],
+          "description": "The currency of every dollar amount in the response."
+        },
+        "remainingDollars": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "Infinity",
+                    "-Infinity",
+                    "NaN"
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Spendable plan and purchased credit, valued in dollars; not a cash or refundable balance. Negative once overdrawn. Null when the organization has no credit balance or an unlimited grant."
+        },
+        "unlimited": {
+          "type": "boolean"
+        },
+        "periodStart": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Start of the current subscription period. Null without a plan; usage windows then default to the UTC calendar month."
+        },
+        "periodEnd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "End of the current subscription period; null without a plan."
+        }
+      },
+      "required": [
+        "currency",
+        "remainingDollars",
+        "unlimited",
+        "periodStart",
+        "periodEnd"
+      ],
+      "additionalProperties": false
+    },
+    "UsageDollarsEncoded": {
+      "type": "object",
+      "properties": {
+        "llmDollars": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ]
+            }
+          ]
+        },
+        "imageDollars": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ]
+            }
+          ]
+        },
+        "vmDollars": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ]
+            }
+          ]
+        },
+        "totalDollars": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ]
+            }
+          ]
+        },
+        "standaloneTokenFeeDollars": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ]
+            }
+          ]
+        },
+        "billedDollars": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "llmDollars",
+        "imageDollars",
+        "vmDollars",
+        "totalDollars",
+        "standaloneTokenFeeDollars",
+        "billedDollars"
+      ],
+      "additionalProperties": false
+    },
+    "UsageImageDollarsEncoded": {
+      "type": "object",
+      "properties": {
+        "endpoint": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "dollars": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "endpoint",
+        "label",
+        "dollars"
+      ],
+      "additionalProperties": false
+    },
+    "UsageMemberDollarsEncoded": {
+      "type": "object",
+      "properties": {
+        "principalUserId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "llmDollars": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ]
+            }
+          ]
+        },
+        "imageDollars": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ]
+            }
+          ]
+        },
+        "vmDollars": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ]
+            }
+          ]
+        },
+        "totalDollars": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ]
+            }
+          ]
+        },
+        "standaloneTokenFeeDollars": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ]
+            }
+          ]
+        },
+        "billedDollars": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "principalUserId",
+        "llmDollars",
+        "imageDollars",
+        "vmDollars",
+        "totalDollars",
+        "standaloneTokenFeeDollars",
+        "billedDollars"
+      ],
+      "additionalProperties": false
+    },
+    "UsageModelDollarsEncoded": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "dollars": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ]
+            }
+          ]
+        },
+        "unbilled": {
+          "type": "boolean"
+        },
+        "tokens": {
+          "$ref": "#/components/schemas/UsageTokenTotalsEncoded"
+        }
+      },
+      "required": [
+        "model",
+        "label",
+        "dollars",
+        "unbilled",
+        "tokens"
+      ],
+      "additionalProperties": false
+    },
+    "UsageReportEncoded": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "totals": {
+          "$ref": "#/components/schemas/UsageDollarsEncoded"
+        },
+        "tokens": {
+          "$ref": "#/components/schemas/UsageTokenTotalsEncoded"
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/UsageMemberDollarsEncoded"
+          }
+        },
+        "models": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/UsageModelDollarsEncoded"
+          }
+        },
+        "images": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/UsageImageDollarsEncoded"
+          }
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "totals",
+        "tokens",
+        "members",
+        "models",
+        "images"
+      ],
+      "additionalProperties": false
+    },
+    "UsageTokenTotalsEncoded": {
+      "type": "object",
+      "properties": {
+        "inputTokens": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ]
+            }
+          ]
+        },
+        "outputTokens": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ]
+            }
+          ]
+        },
+        "cacheReadTokens": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ]
+            }
+          ]
+        },
+        "cacheWriteTokens": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "inputTokens",
+        "outputTokens",
+        "cacheReadTokens",
+        "cacheWriteTokens"
+      ],
+      "additionalProperties": false
+    },
+    "UsageTotalsEncoded": {
+      "type": "object",
+      "properties": {
+        "llmCredits": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ]
+            }
+          ]
+        },
+        "imageCredits": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ]
+            }
+          ]
+        },
+        "vmCredits": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ]
+            }
+          ]
+        },
+        "totalCredits": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "llmCredits",
+        "imageCredits",
+        "vmCredits",
+        "totalCredits"
       ],
       "additionalProperties": false
     }

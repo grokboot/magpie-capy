@@ -1,4 +1,4 @@
-import { createCapyClient } from "./client.ts";
+import { createCapyClient, type CapyTask, type TaskWatchSummary } from "./client.ts";
 import { CapyError } from "./errors.ts";
 import {
   assertConfirmed,
@@ -12,6 +12,7 @@ import {
   readId,
   readOptionalInteger,
   readOptionalMessageCursor,
+  readOptionalModelSelection,
   readOptionalOpaqueCursor,
   readOptionalPageCursor,
   readOptionalText,
@@ -82,6 +83,36 @@ const CONFIRM_SCHEMA = {
   type: "boolean",
   description:
     "Must be true for this exact write invocation. This is a caller assertion, not a human-approval UI or authorization boundary; the host/user must enforce approval.",
+} as const;
+
+const MODEL_SELECTION_SCHEMA = {
+  type: "object",
+  properties: {
+    modelId: {
+      type: "string",
+      minLength: 1,
+      maxLength: 191,
+      description: "A catalog id from GET /api/v1/models (or the model id reported by list_tasks/get_task).",
+    },
+    reasoningMode: {
+      type: "string",
+      enum: ["none", "instant", "minimal", "low", "medium", "high", "xhigh", "max"],
+    },
+    modes: {
+      type: "object",
+      properties: {
+        fast: { type: "boolean" },
+        pro: { type: "boolean" },
+        ultrafast: { type: "boolean" },
+        daybreak: { type: "boolean" },
+      },
+      additionalProperties: false,
+    },
+  },
+  required: ["modelId"],
+  additionalProperties: false,
+  description:
+    "Optional explicit Capy model selection. Omit to use the account's documented default chain; Capy reports any skipped default on the create response.",
 } as const;
 
 export const TOOL_SCHEMAS = Object.freeze({
@@ -191,6 +222,105 @@ export const TOOL_SCHEMAS = Object.freeze({
     required: ["threadId"],
     additionalProperties: false,
   },
+  list_tasks: {
+    type: "object",
+    properties: {
+      threadId: { ...ID_SCHEMA, description: "The parent Capy thread id." },
+      after: {
+        type: "string",
+        minLength: 1,
+        maxLength: 512,
+        pattern: "^\\S+$",
+        description: "Opaque cursor from a previous list_tasks page. Return it unchanged.",
+      },
+      limit: LIMIT_SCHEMA,
+    },
+    required: ["threadId"],
+    additionalProperties: false,
+  },
+  get_task: {
+    type: "object",
+    properties: {
+      taskId: { ...ID_SCHEMA, description: "A Capy task id from list_tasks or run_task." },
+    },
+    required: ["taskId"],
+    additionalProperties: false,
+  },
+  list_task_messages: {
+    type: "object",
+    properties: {
+      taskId: { ...ID_SCHEMA, description: "A Capy task id from list_tasks." },
+      after: {
+        ...MESSAGE_CURSOR_SCHEMA,
+        description: "Forward cursor from a previous page's cursor. Return it unchanged.",
+      },
+      limit: LIMIT_SCHEMA,
+    },
+    required: ["taskId"],
+    additionalProperties: false,
+  },
+  watch_task: {
+    type: "object",
+    properties: {
+      taskId: { ...ID_SCHEMA, description: "A Capy task id from list_tasks or run_task." },
+      cursor: {
+        type: "string",
+        minLength: 1,
+        maxLength: 256,
+        pattern: "^\\S+$",
+        description:
+          "Omit on the first observation. To resume, pass the exact lastEventId from a previous watch_task result; never invent a cursor.",
+      },
+      maxSeconds: {
+        type: "integer",
+        minimum: 1,
+        maximum: 40,
+        default: 20,
+        description: "Bounded local observation time. Reaching it is not a failure and not completion.",
+      },
+      maxEvents: {
+        type: "integer",
+        minimum: 1,
+        maximum: 500,
+        default: 200,
+        description: "Bound on parsed SSE frames collected in one call.",
+      },
+    },
+    required: ["taskId"],
+    additionalProperties: false,
+  },
+  run_task: {
+    type: "object",
+    properties: {
+      requestId: {
+        ...TOKEN_SCHEMA,
+        maxLength: 191,
+        description:
+          "Caller-supplied idempotency token. Reuse the exact value when retrying; the plugin never generates one.",
+      },
+      projectId: { ...ID_SCHEMA, description: "A Capy project id from list_projects." },
+      message: {
+        type: "string",
+        minLength: 1,
+        maxLength: 100000,
+        description:
+          "The opening task. Capy may run commands, spend credits, or open pull requests depending on this text and project settings.",
+      },
+      title: { type: "string", minLength: 1, maxLength: 200 },
+      model: MODEL_SELECTION_SCHEMA,
+      waitSeconds: {
+        type: "integer",
+        minimum: 1,
+        maximum: 40,
+        default: 20,
+        description:
+          "Bounded local observation after creation. Reaching it leaves complete false; it never means the task failed.",
+      },
+      confirm: CONFIRM_SCHEMA,
+    },
+    required: ["requestId", "projectId", "message", "confirm"],
+    additionalProperties: false,
+  },
   create_thread: {
     type: "object",
     properties: {
@@ -209,6 +339,7 @@ export const TOOL_SCHEMAS = Object.freeze({
           "The opening task. Capy may run commands, spend credits, or open pull requests depending on this text and project settings.",
       },
       title: { type: "string", minLength: 1, maxLength: 200 },
+      model: MODEL_SELECTION_SCHEMA,
       confirm: CONFIRM_SCHEMA,
     },
     required: ["requestId", "projectId", "message", "confirm"],
@@ -236,6 +367,7 @@ export const TOOL_SCHEMAS = Object.freeze({
         enum: ["queue", "steer", "interrupt"],
         description: "How Capy delivers the message to a working thread.",
       },
+      model: MODEL_SELECTION_SCHEMA,
       confirm: CONFIRM_SCHEMA,
     },
     required: ["threadId", "text", "clientKey", "confirm"],
@@ -393,6 +525,137 @@ export function createCapyToolsPlugin(runtime: ToolRuntime = {}) {
         },
       },
 
+      list_tasks: {
+        description:
+          "List the Capy tasks recorded for a thread. Read-only. Returns task id, parent, taskPath, status (working/waiting/idle/done/failed), usage totals, and the next cursor. This is Capy's task lifecycle, not a chat-completion API.",
+        args: TOOL_SCHEMAS.list_tasks,
+        async execute(raw, ctx) {
+          const args = validateToolArgs(raw, ["threadId", "after", "limit"]);
+          const threadId = readId(args.threadId, "threadId");
+          const after = readOptionalOpaqueCursor(args.after, "after");
+          const limit = readOptionalInteger(args.limit, "limit", 1, 100);
+          return client().listTasks(threadId, {
+            ...(after !== undefined ? { after } : {}),
+            ...(limit !== undefined ? { limit } : {}),
+            signal: ctx?.abort,
+          });
+        },
+      },
+
+      get_task: {
+        description:
+          "Get one Capy task's documented lifecycle status and usage totals. Read-only. A terminal status (done/failed) is server state; a timeout in watch_task is not a terminal status.",
+        args: TOOL_SCHEMAS.get_task,
+        async execute(raw, ctx) {
+          const args = validateToolArgs(raw, ["taskId"]);
+          const taskId = readId(args.taskId, "taskId");
+          return client().getTask(taskId, { signal: ctx?.abort });
+        },
+      },
+
+      list_task_messages: {
+        description:
+          "List one page of a task's own transcript. Read-only. Returns items plus the forward cursor; pass that cursor back unchanged. This reads the task lane, not the parent thread transcript.",
+        args: TOOL_SCHEMAS.list_task_messages,
+        async execute(raw, ctx) {
+          const args = validateToolArgs(raw, ["taskId", "after", "limit"]);
+          const taskId = readId(args.taskId, "taskId");
+          const after = readOptionalMessageCursor(args.after, "after");
+          const limit = readOptionalInteger(args.limit, "limit", 1, 100);
+          return client().listTaskMessages(taskId, {
+            ...(after !== undefined ? { after } : {}),
+            ...(limit !== undefined ? { limit } : {}),
+            signal: ctx?.abort,
+          });
+        },
+      },
+
+      watch_task: {
+        description:
+          "Observe one Capy task over its documented SSE endpoint for a bounded time. Read-only. Returns status, task/run/turn counts, committed transcript entries, unsettled previews, and lastEventId. `ended: time_limit` means local observation ended, not task failure or completion; check get_task for server state. Cancelling stops local observation only.",
+        args: TOOL_SCHEMAS.watch_task,
+        async execute(raw, ctx) {
+          const args = validateToolArgs(raw, ["taskId", "cursor", "maxSeconds", "maxEvents"]);
+          const taskId = readId(args.taskId, "taskId");
+          const cursor = readOptionalWatchCursor(args.cursor, "cursor");
+          const maxSeconds = readOptionalInteger(args.maxSeconds, "maxSeconds", 1, 40);
+          const maxEvents = readOptionalInteger(args.maxEvents, "maxEvents", 1, 500);
+          return client().watchTask(taskId, {
+            ...(cursor !== undefined ? { cursor } : {}),
+            ...(maxSeconds !== undefined ? { maxSeconds } : {}),
+            ...(maxEvents !== undefined ? { maxEvents } : {}),
+            signal: ctx?.abort,
+          });
+        },
+      },
+
+      run_task: {
+        description:
+          `Explicit Capy task proxy, not a direct model API: create a thread with an optional Capy model, list its tasks, then observe the newest task for a bounded time. WRITE: disabled unless CAPY_ALLOW_WRITES=true, and confirm must be true. ${WRITE_EFFECTS} Returns the created thread id, task list, and observation; complete is true only when the task stream ended with its own 'done' frame. A timeout or empty task list leaves complete false and is not a failure claim. requestId is caller-supplied and reused verbatim on retries.`,
+        args: TOOL_SCHEMAS.run_task,
+        async execute(raw, ctx) {
+          const args = validateToolArgs(raw, [
+            "requestId",
+            "projectId",
+            "message",
+            "title",
+            "model",
+            "waitSeconds",
+            "confirm",
+          ]);
+          const requestId = readToken(args.requestId, "requestId", 191);
+          const projectId = readId(args.projectId, "projectId");
+          const message = readText(args.message, "message", 100_000);
+          const title = readOptionalText(args.title, "title", 200);
+          const model = readOptionalModelSelection(args.model, "model");
+          const waitSeconds = readOptionalInteger(args.waitSeconds, "waitSeconds", 1, 40);
+          assertWritesEnabled(env, allowWrites);
+          assertConfirmed(args.confirm === true);
+
+          const capy = client();
+          const thread = await capy.createThread(
+            {
+              requestId,
+              projectId,
+              message,
+              ...(title !== undefined ? { title } : {}),
+              ...(model !== undefined ? { model } : {}),
+            },
+            { signal: ctx?.abort },
+          );
+
+          let tasks: CapyTask[] = [];
+          let observation: TaskWatchSummary | null = null;
+          let taskError: string | null = null;
+          try {
+            const page = await capy.listTasks(thread.id, { limit: 100, signal: ctx?.abort });
+            tasks = page.items;
+            const task = tasks.reduce<(typeof tasks)[number] | null>((latest, candidate) => {
+              if (latest === null) return candidate;
+              return candidate.createdAt > latest.createdAt ? candidate : latest;
+            }, null);
+            if (task) {
+              observation = await capy.watchTask(task.id, {
+                ...(waitSeconds !== undefined ? { maxSeconds: waitSeconds } : {}),
+                signal: ctx?.abort,
+              });
+            }
+          } catch (error) {
+            taskError =
+              error instanceof CapyError ? error.message : "Task 生命周期读取失败；thread 已创建。";
+          }
+
+          return {
+            thread,
+            tasks,
+            observation,
+            complete: observation?.complete === true,
+            taskPending: tasks.length === 0,
+            ...(taskError !== null ? { taskError } : {}),
+          };
+        },
+      },
+
       create_thread: {
         description:
           `Create a new Capy thread and start its opening task. WRITE: disabled unless CAPY_ALLOW_WRITES=true, and confirm must be true. ${WRITE_EFFECTS} requestId is caller-supplied and reused verbatim on retries; the plugin never generates one.`,
@@ -403,12 +666,14 @@ export function createCapyToolsPlugin(runtime: ToolRuntime = {}) {
             "projectId",
             "message",
             "title",
+            "model",
             "confirm",
           ]);
           const requestId = readToken(args.requestId, "requestId", 191);
           const projectId = readId(args.projectId, "projectId");
           const message = readText(args.message, "message", 100_000);
           const title = readOptionalText(args.title, "title", 200);
+          const model = readOptionalModelSelection(args.model, "model");
           assertWritesEnabled(env, allowWrites);
           assertConfirmed(args.confirm === true);
           return client().createThread(
@@ -417,6 +682,7 @@ export function createCapyToolsPlugin(runtime: ToolRuntime = {}) {
               projectId,
               message,
               ...(title !== undefined ? { title } : {}),
+              ...(model !== undefined ? { model } : {}),
             },
             { signal: ctx?.abort },
           );
@@ -433,11 +699,13 @@ export function createCapyToolsPlugin(runtime: ToolRuntime = {}) {
             "text",
             "clientKey",
             "delivery",
+            "model",
             "confirm",
           ]);
           const threadId = readId(args.threadId, "threadId");
           const text = readText(args.text, "text", 100_000);
           const clientKey = readToken(args.clientKey, "clientKey", 64);
+          const model = readOptionalModelSelection(args.model, "model");
           const delivery = args.delivery;
           if (
             delivery !== undefined &&
@@ -458,6 +726,7 @@ export function createCapyToolsPlugin(runtime: ToolRuntime = {}) {
               text,
               clientKey,
               ...(delivery !== undefined ? { delivery } : {}),
+              ...(model !== undefined ? { model } : {}),
             },
             { signal: ctx?.abort },
           );

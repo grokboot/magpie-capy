@@ -51,6 +51,8 @@ const KNOWN_TAGS = new Set([
   "capy/PaidFeatureUnavailable",
   "capy/RateLimited",
   "capy/StreamUnavailable",
+  "capy/UsageUnavailable",
+  "capy/BillingAuthorityUnavailable",
   "capy/EditNotAllowed",
   "capy/CrewRefused",
   "capy/DeviceAccessDenied",
@@ -161,10 +163,15 @@ export function apiError(
       { status },
     );
   }
-  if (status === 503 || tag === "capy/StreamUnavailable") {
+  if (
+    status === 503 ||
+    tag === "capy/StreamUnavailable" ||
+    tag === "capy/UsageUnavailable" ||
+    tag === "capy/BillingAuthorityUnavailable"
+  ) {
     return new CapyError(
       "unavailable",
-      "Capy could not serve the request or stream right now (HTTP 503). Try again later.",
+      `Capy could not serve the request, usage, or stream right now (HTTP 503${known}). Try again later.`,
       { status },
     );
   }

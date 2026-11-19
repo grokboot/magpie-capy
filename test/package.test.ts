@@ -30,7 +30,7 @@ describe("package UX metadata", () => {
   });
 
   test("carries only truthful npm keywords", () => {
-    expect(pkg.keywords).toEqual(["magpie", "capy", "task-agent", "api-key"]);
+    expect(pkg.keywords).toEqual(["magpie", "capy", "task-agent", "api-key", "models", "usage"]);
   });
 
   test("has a bounded offline data-URI icon identical to the attributed asset", () => {
@@ -52,9 +52,9 @@ describe("package UX metadata", () => {
     expect(Buffer.byteLength(pkg.magpie.summary.en)).toBeLessThanOrEqual(300);
     expect(Buffer.byteLength(pkg.magpie.summary.zh)).toBeLessThanOrEqual(300);
     expect(pkg.magpie.summary.zh).toContain("API Key");
-    expect(pkg.magpie.summary.zh).toContain("委托");
-    expect(pkg.magpie.summary.en).toContain("delegation");
-    expect(pkg.magpie.summary.en).toContain("advanced");
+    expect(pkg.magpie.summary.zh).toContain("OAuth/OIDC");
+    expect(pkg.magpie.summary.en).toContain("OAuth/OIDC");
+    expect(pkg.magpie.summary.en).toContain("writes off");
     expect(pkg.description).toContain("Capy");
     expect(pkg.description).toContain("任务");
   });

@@ -57,6 +57,41 @@ export const ENDPOINTS = Object.freeze({
     path: "/api/v1/threads/{threadId}/stream",
     operationId: "streams.thread",
   },
+  listModels: {
+    method: "GET",
+    path: "/api/v1/models",
+    operationId: "models.list",
+  },
+  usageBalance: {
+    method: "GET",
+    path: "/api/v1/usage/balance",
+    operationId: "usage.balance",
+  },
+  usageReport: {
+    method: "GET",
+    path: "/api/v1/usage",
+    operationId: "usage.get",
+  },
+  listTasks: {
+    method: "GET",
+    path: "/api/v1/threads/{threadId}/tasks",
+    operationId: "tasks.list",
+  },
+  getTask: {
+    method: "GET",
+    path: "/api/v1/tasks/{taskId}",
+    operationId: "tasks.get",
+  },
+  listTaskMessages: {
+    method: "GET",
+    path: "/api/v1/tasks/{taskId}/messages",
+    operationId: "tasks.messages",
+  },
+  watchTask: {
+    method: "GET",
+    path: "/api/v1/tasks/{taskId}/stream",
+    operationId: "streams.task",
+  },
 } satisfies Record<string, Endpoint>);
 
 export function endpointPath(endpoint: Endpoint, params: Record<string, string> = {}): string {

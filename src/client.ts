@@ -26,12 +26,14 @@ import {
   readInteger,
   readOptionalInteger,
   readOptionalMessageCursor,
+  readOptionalModelSelection,
   readOptionalOpaqueCursor,
   readOptionalPageCursor,
   readOptionalText,
   readOptionalWatchCursor,
   readText,
   readToken,
+  type ModelSelection,
 } from "./validation.ts";
 
 export type JsonObject = Record<string, unknown>;
@@ -79,6 +81,75 @@ export interface SubagentPage {
   cursor: string | null;
 }
 
+export type ModelBillingRoute = "member_seat" | "member_credential" | "org_credential" | "capy";
+
+export interface CapyModel {
+  id: string;
+  name: string;
+  billing: string;
+  route: ModelBillingRoute | string;
+  reasoningModes: string[];
+  fast: boolean;
+  pro: boolean;
+  ultrafast: boolean;
+}
+
+export interface DefaultedModel {
+  modelId: string;
+  source: string;
+  skipped: { modelId: string; source: string; reason: string }[];
+}
+
+export interface ModelCatalog {
+  items: CapyModel[];
+  default: DefaultedModel;
+}
+
+export type UsageAmount = number | "Infinity" | "-Infinity" | "NaN";
+
+export interface UsageBalance {
+  currency: "USD";
+  remainingDollars: UsageAmount | null;
+  unlimited: boolean;
+  periodStart: string | null;
+  periodEnd: string | null;
+}
+
+export interface UsageMoneyTotals {
+  llmDollars: UsageAmount;
+  imageDollars: UsageAmount;
+  vmDollars: UsageAmount;
+  totalDollars: UsageAmount;
+  standaloneTokenFeeDollars: UsageAmount;
+  billedDollars: UsageAmount;
+}
+
+export interface UsageReport {
+  from: string;
+  to: string;
+  totals: UsageMoneyTotals;
+}
+
+export interface CapyTask {
+  id: string;
+  threadId: string;
+  parentId: string;
+  taskPath: string;
+  projectId: string | null;
+  title: string | null;
+  status: "working" | "waiting" | "idle" | "done" | "failed";
+  archived: boolean;
+  usage: JsonObject;
+  createdAt: string;
+  updatedAt: string;
+  lastActivityAt: string | null;
+}
+
+export interface TaskPage {
+  items: CapyTask[];
+  cursor: string | null;
+}
+
 export interface CapyClientOptions {
   apiKey: string;
   fetchImpl?: FetchLike;
@@ -117,18 +188,35 @@ export interface CreateThreadInput {
   projectId: string;
   message: string;
   title?: string;
+  model?: ModelSelection;
 }
 
 export interface SendMessageInput {
   text: string;
   clientKey: string;
   delivery?: "queue" | "steer" | "interrupt";
+  model?: ModelSelection;
 }
 
 export interface WatchThreadOptions extends RequestOptions {
   cursor?: string;
   maxSeconds?: number;
   maxEvents?: number;
+}
+
+export interface ListTasksOptions extends RequestOptions {
+  after?: string;
+  limit?: number;
+}
+
+export interface ListTaskMessagesOptions extends RequestOptions {
+  after?: string;
+  limit?: number;
+}
+
+export interface UsageReportOptions extends RequestOptions {
+  from?: string;
+  to?: string;
 }
 
 export type WatchEnded =
@@ -139,8 +227,8 @@ export type WatchEnded =
   | "max_bytes"
   | "connection_closed";
 
-export interface WatchSummary {
-  threadId: string;
+export interface WatchResult {
+  subjectId: string;
   complete: boolean;
   ended: WatchEnded;
   /** Cursor advanced only by valid committed transcript frames. */
@@ -169,6 +257,14 @@ export interface WatchSummary {
     toolCalls: { callId: string | null; name: string; text: string }[];
   };
   remoteError: { code: string; message: string } | null;
+}
+
+export interface WatchSummary extends WatchResult {
+  threadId: string;
+}
+
+export interface TaskWatchSummary extends WatchResult {
+  taskId: string;
 }
 
 const DEFAULT_TIMEOUT_MS = 20_000;
@@ -318,6 +414,126 @@ function admitReceipt(value: unknown): AdmitReceipt {
   return value as AdmitReceipt;
 }
 
+function usageAmount(value: unknown): value is UsageAmount {
+  return (
+    (typeof value === "number" && Number.isFinite(value)) ||
+    value === "Infinity" ||
+    value === "-Infinity" ||
+    value === "NaN"
+  );
+}
+
+function defaultedModel(value: unknown): DefaultedModel {
+  const body = record(value);
+  if (!body || !Array.isArray(body.skipped)) throw invalidResponse();
+  requireStringField(body, "modelId", true);
+  requireStringField(body, "source", true);
+  for (const item of body.skipped) {
+    const skipped = record(item);
+    if (!skipped) throw invalidResponse();
+    requireStringField(skipped, "modelId", true);
+    requireStringField(skipped, "source", true);
+    requireStringField(skipped, "reason", true);
+  }
+  return value as DefaultedModel;
+}
+
+function capyModel(value: unknown): CapyModel {
+  const body = record(value);
+  if (!body) throw invalidResponse();
+  requireStringField(body, "id", true);
+  requireStringField(body, "name", true);
+  requireStringField(body, "billing", true);
+  requireStringField(body, "route", true);
+  if (
+    !Array.isArray(body.reasoningModes) ||
+    body.reasoningModes.some((mode) => typeof mode !== "string")
+  ) {
+    throw invalidResponse();
+  }
+  for (const field of ["fast", "pro", "ultrafast"] as const) {
+    if (typeof body[field] !== "boolean") throw invalidResponse();
+  }
+  return value as CapyModel;
+}
+
+function modelCatalog(value: unknown): ModelCatalog {
+  const body = record(value);
+  if (!body || !Array.isArray(body.items)) throw invalidResponse();
+  for (const item of body.items) capyModel(item);
+  defaultedModel(body.default);
+  return value as ModelCatalog;
+}
+
+function usageBalance(value: unknown): UsageBalance {
+  const body = record(value);
+  if (!body || body.currency !== "USD") throw invalidResponse();
+  if (typeof body.unlimited !== "boolean") throw invalidResponse();
+  if (body.remainingDollars !== null && !usageAmount(body.remainingDollars)) {
+    throw invalidResponse();
+  }
+  for (const field of ["periodStart", "periodEnd"] as const) {
+    if (body[field] !== null && typeof body[field] !== "string") throw invalidResponse();
+  }
+  return value as UsageBalance;
+}
+
+function usageReport(value: unknown): UsageReport {
+  const body = record(value);
+  if (!body) throw invalidResponse();
+  requireStringField(body, "from");
+  requireStringField(body, "to");
+  const totals = record(body.totals);
+  if (!totals) throw invalidResponse();
+  for (const field of [
+    "llmDollars",
+    "imageDollars",
+    "vmDollars",
+    "totalDollars",
+    "standaloneTokenFeeDollars",
+    "billedDollars",
+  ] as const) {
+    if (!usageAmount(totals[field])) throw invalidResponse();
+  }
+  if (!Array.isArray(body.members) || !Array.isArray(body.models) || !Array.isArray(body.images)) {
+    throw invalidResponse();
+  }
+  if (!record(body.tokens)) throw invalidResponse();
+  return value as UsageReport;
+}
+
+const TASK_STATUSES = new Set(["working", "waiting", "idle", "done", "failed"]);
+
+function capyTask(value: unknown): CapyTask {
+  const body = record(value);
+  if (!body) throw invalidResponse();
+  requireStringField(body, "id", true);
+  requireStringField(body, "threadId", true);
+  requireStringField(body, "parentId", true);
+  requireStringField(body, "taskPath", true);
+  if (body.projectId !== null && typeof body.projectId !== "string") throw invalidResponse();
+  if (body.title !== null && typeof body.title !== "string") throw invalidResponse();
+  if (typeof body.status !== "string" || !TASK_STATUSES.has(body.status)) {
+    throw invalidResponse();
+  }
+  if (typeof body.archived !== "boolean") throw invalidResponse();
+  if (!record(body.usage)) throw invalidResponse();
+  requireStringField(body, "createdAt");
+  requireStringField(body, "updatedAt");
+  if (body.lastActivityAt !== null && typeof body.lastActivityAt !== "string") {
+    throw invalidResponse();
+  }
+  return value as CapyTask;
+}
+
+function taskPage(value: unknown): TaskPage {
+  const body = record(value);
+  if (!body || !Array.isArray(body.items)) throw invalidResponse();
+  if (body.cursor !== null && typeof body.cursor !== "string") throw invalidResponse();
+  for (const item of body.items) capyTask(item);
+  return value as TaskPage;
+}
+
 function parseRetryAfter(value: string | null, body: JsonObject | null): number | undefined {
   if (value !== null && /^\d{1,6}$/.test(value.trim())) {
     const seconds = Number(value.trim());
@@ -420,6 +636,30 @@ export class CapyClient {
     return projectList(value);
   }
 
+  async listModels(options: RequestOptions = {}): Promise<ModelCatalog> {
+    const value = await this.requestJson(ENDPOINTS.listModels, {
+      signal: options.signal,
+    });
+    return modelCatalog(value);
+  }
+
+  async getUsageBalance(options: RequestOptions = {}): Promise<UsageBalance> {
+    const value = await this.requestJson(ENDPOINTS.usageBalance, {
+      signal: options.signal,
+    });
+    return usageBalance(value);
+  }
+
+  async getUsageReport(options: UsageReportOptions = {}): Promise<UsageReport> {
+    const from = readOptionalText(options.from, "from", 64);
+    const to = readOptionalText(options.to, "to", 64);
+    const value = await this.requestJson(ENDPOINTS.usageReport, {
+      query: { from, to },
+      signal: options.signal,
+    });
+    return usageReport(value);
+  }
+
   async listThreads(options: ListThreadsOptions): Promise<ThreadPage> {
     const projectId = readId(options.projectId, "projectId");
     const limit = readOptionalInteger(options.limit, "limit", 1, 100);
@@ -486,11 +726,48 @@ export class CapyClient {
     return messagePage(value);
   }
 
+  async listTasks(threadId: string, options: ListTasksOptions = {}): Promise<TaskPage> {
+    const id = readId(threadId, "threadId");
+    const after = readOptionalOpaqueCursor(options.after, "after");
+    const limit = readOptionalInteger(options.limit, "limit", 1, 100);
+    const value = await this.requestJson(ENDPOINTS.listTasks, {
+      pathParams: { threadId: id },
+      query: { after, limit },
+      signal: options.signal,
+    });
+    return taskPage(value);
+  }
+
+  async getTask(taskId: string, options: RequestOptions = {}): Promise<CapyTask> {
+    const id = readId(taskId, "taskId");
+    const value = await this.requestJson(ENDPOINTS.getTask, {
+      pathParams: { taskId: id },
+      signal: options.signal,
+    });
+    return capyTask(value);
+  }
+
+  async listTaskMessages(
+    taskId: string,
+    options: ListTaskMessagesOptions = {},
+  ): Promise<MessagePage> {
+    const id = readId(taskId, "taskId");
+    const after = readOptionalMessageCursor(options.after, "after");
+    const limit = readOptionalInteger(options.limit, "limit", 1, 100);
+    const value = await this.requestJson(ENDPOINTS.listTaskMessages, {
+      pathParams: { taskId: id },
+      query: { after, limit },
+      signal: options.signal,
+    });
+    return messagePage(value);
+  }
+
   async createThread(input: CreateThreadInput, options: RequestOptions = {}): Promise<CapyThread> {
     const requestId = readToken(input.requestId, "requestId", 191);
     const projectId = readId(input.projectId, "projectId");
     const messageText = readText(input.message, "message", MAX_TEXT_CHARS);
     const title = readOptionalText(input.title, "title", MAX_TITLE_CHARS);
+    const model = readOptionalModelSelection(input.model, "model");
     const value = await this.requestJson(ENDPOINTS.createThread, {
       method: "POST",
       body: {
@@ -498,6 +775,7 @@ export class CapyClient {
         projectId,
         message: messageText,
         ...(title !== undefined ? { title } : {}),
+        ...(model !== undefined ? { model } : {}),
       },
       signal: options.signal,
     });
@@ -519,6 +797,7 @@ export class CapyClient {
         "delivery must be queue, steer, or interrupt.",
       );
     }
+    const model = readOptionalModelSelection(input.model, "model");
     const value = await this.requestJson(ENDPOINTS.sendMessage, {
       method: "POST",
       pathParams: { threadId: id },
@@ -526,6 +805,7 @@ export class CapyClient {
         text,
         clientKey,
         ...(delivery !== undefined ? { delivery } : {}),
+        ...(model !== undefined ? { model } : {}),
       },
       signal: options.signal,
     });
@@ -544,6 +824,21 @@ export class CapyClient {
 
   async watchThread(threadId: string, options: WatchThreadOptions = {}): Promise<WatchSummary> {
     const id = readId(threadId, "threadId");
+    const result = await this.watch(ENDPOINTS.watchThread, id, options);
+    return { ...result, threadId: id };
+  }
+
+  async watchTask(taskId: string, options: WatchThreadOptions = {}): Promise<TaskWatchSummary> {
+    const id = readId(taskId, "taskId");
+    const result = await this.watch(ENDPOINTS.watchTask, id, options);
+    return { ...result, taskId: id };
+  }
+
+  private async watch(
+    endpoint: (typeof ENDPOINTS)[keyof typeof ENDPOINTS],
+    subjectId: string,
+    options: WatchThreadOptions,
+  ): Promise<WatchResult> {
     const cursor = readOptionalWatchCursor(options.cursor, "cursor");
     const maxSeconds = readInteger(
       options.maxSeconds ?? WATCH_DEFAULT_SECONDS,
@@ -558,8 +853,8 @@ export class CapyClient {
       WATCH_MAX_EVENTS,
     );
 
-    const summary: WatchSummary = {
-      threadId: id,
+    const summary: WatchResult = {
+      subjectId,
       complete: false,
       ended: "connection_closed",
       lastEventId: null,
@@ -600,8 +895,8 @@ export class CapyClient {
       toolCallPreviews.length = 0;
     };
 
-    const { response, control } = await this.open(ENDPOINTS.watchThread, {
-      pathParams: { threadId: id },
+    const { response, control } = await this.open(endpoint, {
+      pathParams: { [endpoint === ENDPOINTS.watchTask ? "taskId" : "threadId"]: subjectId },
       query: { after: cursor },
       signal: options.signal,
       timeoutMs: maxSeconds * 1000,
@@ -731,9 +1026,11 @@ export class CapyClient {
               else toolCallPreviews.push(preview);
               break;
             }
-            case "task":
+            case "task": {
               summary.counts.task += 1;
+              if (data && typeof data.status === "string") summary.status = data.status;
               break;
+            }
             case "subagent":
               summary.counts.subagent += 1;
               break;

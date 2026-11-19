@@ -2,26 +2,24 @@
 
 This file separates local verification from live-service validation. It is not a claim that the unofficial plugin is reviewed, endorsed or production-certified by Capy or Magpie.
 
-## Verified locally
+## Verified locally (0.3.0)
 
-- Full unit and contract suite, typecheck, and release-archive regression pass in the development environment.
-- Isolated Magpie CLI loading of the extracted 0.2.1 archive shows 10 tools named `magpie-capy_*`, a zero-model `capy` auth provider, and the expected provider row with a sign-in action.
-- Desktop/Web UI acceptance on the extracted 0.2.1 artifact: brand icon, Chinese-first README/version/license, organization API-key dialog (opened and cancelled without a credential), and persisted `{"allowWrites":false}` Options state.
-- Missing key, malformed key, multi-account fail-closed, auth race, redaction, write-default-off, redirect, timeout, cancellation and SSE-limit paths are covered with synthetic keys and mocked `fetch`.
+- Full offline unit/contract suite and typecheck pass. The suite covers dynamic model discovery, balance/period usage mapping, model selection, task lifecycle reads, `run_task`, bounded task/thread SSE, OAuth PKCE/discovery/loopback callback/cancel/refresh, auth races, multi-account fail-closed, redaction, write-default-off, redirects, timeouts and body limits.
+- Contract fixture contains the public OpenAPI operations for models, usage balance/report, tasks and task stream; tests check methods, paths, query fields, request fields and required response fields.
+- Package/archive regression uses synthetic data and a pinned `SOURCE_DATE_EPOCH`; no credential or network is required.
 
-## Not verified
+## Not verified in this turn
 
-- No real Capy organization API key was used.
-- No live Capy project/thread/subagent/message/SSE request was made.
-- No write tool was executed against Capy.
-- No end-to-end authenticated Capy API success is claimed.
-- The public repository exists and GitHub search indexes it. The GitHub `magpie-plugin` topic is an official unreviewed route, but it is not an immediate Discover guarantee: the actual app catalog must contain the plugin before it can appear, and no current Discover visibility is claimed. Catalog lookup prefers the prebuilt GitHub catalog for 48 hours; if it is unavailable, lookup falls back to a client-cached topic query (about 10 minutes) or live GitHub. The curated registry is a separate recommended list that refreshes at most every 6 hours.
-- The 0.2.2 patch changes version metadata, docs, and tests only; no new GUI pass has been run for it. The 0.2.2 archive is immutable.
-- The 0.2.3 release package uses the Capy display name and the standard npm root package layout. The 0.2.3 GUI check passed name, icon, Chinese README, 10 tools, authorized status, and Options `allowWrites=false` persistence; GUI local logout and prompt cancel were not verified, so this is not a complete GUI pass. The GitHub release is authorized; npm publication is pending authentication.
-- There is no OAuth. The intended path is Capy web email login, then Settings to create an API Key, then explicit manual delegation by pasting the key into Magpie's native password input. The key is not read-only by type, has no scopes of its own, and permissions follow the principal. Use a dedicated read-only service user and an expiry such as 30 days where possible; no specific scope, principal mapping, or expiry metadata was verified.
-- For release 0.2.3, install through the official Magpie CLI with the stable plugin ID; once npm publication is available, use standard npm installation. Do not manually load the unpacked package folder. The GitHub release is authorized; npm publication is pending authentication, and no current npm availability is claimed. Automated live verification covered basic native authorization and a read-only project list; because the result was empty, subagent, SSE, message, and write paths were not live-tested. The suite contains 117 tests. The 0.2.3 GUI check passed only the subset above; GUI local logout and prompt cancel were not verified.
-- Native local-folder version/license metadata remains a host limitation; the package manifest cannot override every registry-derived field.
+- No live Capy login, model catalog, balance, task, SSE, message or write request was made.
+- No real Capy organization API Key or OAuth token was used.
+- Capy's `/api/v1` acceptance of an optional OAuth/OIDC issuer's token, and Capy's registration of a third-party client/redirect/audience, are not confirmed by the public contract.
+- Before 0.3.0, 0.2.3 had a controlled live check of native API-key authorization and a read-only `list_projects` (HTTP 200, empty). Because the result was empty, subagent/SSE/message/write paths were not live-tested. That historical check does not cover the new model/usage/task paths.
+- 0.2.3's GUI check covered name, icon, Chinese README, 10 tools, authorized status and `allowWrites=false` persistence. GUI local logout and prompt cancel were not verified. 0.3.0 has 15 tools and no new GUI acceptance is claimed.
 
-## Public route
+## OAuth boundary
 
-The documented GitHub route for Magpie discovery is a public, non-fork, non-archived repository with `package.json` at the root and the `magpie-plugin` topic. The entry file is committed. npm publication is a separate route and is not required for the GitHub-topic route; npm metadata is prepared but no npm release exists. A standard npm tarball has a top-level `package/` directory, which is normal and does not make manual extracted-folder installation a stable path. See `docs/research.md`.
+The optional browser method is a real public OIDC authorization-code + PKCE implementation with a loopback callback and refresh-token rotation. It is not a Capy official third-party client. Capy's desktop Clerk → `capy://app/` → `mintToken`/`rotatedJwt` chain is statically confirmed, but this plugin does not read runtime session stores, reuse the Capy desktop scheme, or claim that the desktop session JWT is accepted by `/api/v1`.
+
+## Public route and releases
+
+GitHub installation uses the public repository route (`grokboot/magpie-capy`, root manifest, committed entry). npm publication is pending authentication; no npm availability is claimed. The 0.2.3 artifact/tag is immutable; 0.3.0 is a new preview. `Discover` labels the plugin **Unofficial**, and the actual app catalog must contain it before it can appear. Local-folder version/license metadata remains a host limitation.

@@ -2,6 +2,29 @@ import { invalidArguments } from "./errors.ts";
 
 export type JsonRecord = Record<string, unknown>;
 
+export const REASONING_MODES = [
+  "none",
+  "instant",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+] as const;
+export type ReasoningMode = (typeof REASONING_MODES)[number];
+
+export interface ModelSelection {
+  modelId: string;
+  reasoningMode?: ReasoningMode;
+  modes?: {
+    fast?: boolean;
+    pro?: boolean;
+    ultrafast?: boolean;
+    daybreak?: boolean;
+  };
+}
+
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,190}$/;
 const TOKEN_PATTERN = /^[A-Za-z0-9._:-]+$/;
 const MESSAGE_CURSOR_PATTERN = /^[A-Za-z0-9_-]{26}$/;
@@ -180,6 +203,52 @@ export function readWatchCursor(value: unknown, field: string): string {
 export function readOptionalWatchCursor(value: unknown, field: string): string | undefined {
   if (value === undefined) return undefined;
   return readWatchCursor(value, field);
+}
+
+export function readModelSelection(value: unknown, field: string): ModelSelection | undefined {
+  if (value === undefined) return undefined;
+  const selection = asRecord(value, field);
+  const allowed = new Set(["modelId", "reasoningMode", "modes"]);
+  for (const key of Object.keys(selection)) {
+    if (!allowed.has(key)) {
+      throw invalidArguments(
+        `${field} only accepts modelId, reasoningMode, and modes.`,
+      );
+    }
+  }
+  const modelId = readText(selection.modelId, `${field}.modelId`, 191);
+  const reasoningMode =
+    selection.reasoningMode === undefined
+      ? undefined
+      : readEnum(selection.reasoningMode, `${field}.reasoningMode`, REASONING_MODES);
+  let modes: ModelSelection["modes"];
+  if (selection.modes !== undefined) {
+    const rawModes = asRecord(selection.modes, `${field}.modes`);
+    const modeKeys = new Set(["fast", "pro", "ultrafast", "daybreak"]);
+    for (const key of Object.keys(rawModes)) {
+      if (!modeKeys.has(key)) {
+        throw invalidArguments(
+          `${field}.modes only accepts fast, pro, ultrafast, and daybreak.`,
+        );
+      }
+    }
+    modes = {};
+    for (const key of ["fast", "pro", "ultrafast", "daybreak"] as const) {
+      if (rawModes[key] !== undefined) modes[key] = readBoolean(rawModes[key], `${field}.modes.${key}`);
+    }
+  }
+  return {
+    modelId,
+    ...(reasoningMode !== undefined ? { reasoningMode } : {}),
+    ...(modes !== undefined ? { modes } : {}),
+  };
+}
+
+export function readOptionalModelSelection(
+  value: unknown,
+  field: string,
+): ModelSelection | undefined {
+  return readModelSelection(value, field);
 }
 
 export function readOpaqueCursor(value: unknown, field: string, maxLength = 512): string {

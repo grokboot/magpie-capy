@@ -1,10 +1,23 @@
-# magpie-capy 0.2.3
+# magpie-capy 0.3.0
 
-Capy 任务平台工具（非模型提供方）。普通产品登录委托尚未验证；当前可用高级路径是在 Capy 设置中创建组织 API Key，再在 Magpie 中配置。写入默认关闭。
+Capy 任务平台桥（不是模型提供方）。在 Magpie 中配置 Capy 组织 API Key（或可选的 OAuth/OIDC 浏览器登录）后，智能体可读取动态模型目录、真实额度、项目/线程/子代理/任务与消息，并用有界 SSE 观察；`run_task` 是明示的 Capy 任务代理，不是直连模型 API。写入默认关闭。
 
 许可证：MIT（源码）。Capy 名称与图标属于 Capy 品牌，归属见 `docs/attribution.md`。
 
-## 安装
+## 功能支持矩阵
+
+| 能力 | 实现依据 | 离线状态 | 真实 Capy 实测 | 已知阻塞 |
+| --- | --- | --- | --- | --- |
+| 组织 API Key 登录 | 公开 API + 宿主 auth 契约 | 已实现，prompt/授权/取消/401 有 mock 测试 | 0.2.3 曾做过一次 `list_projects` 只读验证 | Key 权限随 principal，未验证 scope/到期元数据 |
+| 动态模型目录 | 公开 `GET /api/v1/models` | 已实现；映射 `id/name/reasoningModes` 等，不伪造 context/tool 支持 | 本 turn 未联网 | 无 |
+| 额度/周期消费 | 公开 `GET /api/v1/usage/balance` + `GET /api/v1/usage` | 已实现 numeric/null/unlimited、周期报告、失败原因；不伪造 0 | 本 turn 未联网 | `remainingDollars` 是剩余美元，不是 entitlement；报告不含上限/百分比 |
+| 模型选择 | 公开 `ModelSelection` on create/send | `create_thread`、`send_message`、`run_task` 可传 `model` | 本 turn 未联网 | 无 |
+| 任务生命周期读取 | 公开 tasks list/get/messages/stream | `list_tasks`、`get_task`、`list_task_messages`、`watch_task` | 本 turn 未联网 | 无 |
+| 显式任务代理 | create → list tasks → watch | `run_task` 返回 thread/tasks/observation，`complete` 只认任务流自己的 `done` | 本 turn 未联网；测试用 mock | 创建/发消息可能计费或执行命令 |
+| 浏览器 OAuth/OIDC | 公开 OIDC discovery + PKCE + 本机回环回调 | 已实现 state/PKCE、回调、code 交换、refresh；配置缺失时 feature gate 明确 | 本 turn 未联网，使用 mock issuer | Capy 官方第三方 client/redirect/audience 登记未公开；不能声称是 Capy 官方委托 |
+| Capy 自身 Clerk 会话登录 | 桌面静态链已证实 Clerk、`capy://app/`、mint/rotatedJwt | 未做成插件契约 | 未实测 | 缺公开第三方 client/redirect/audience 与 session JWT 的 `/api/v1` 受众确认 |
+
+## 安装与升级
 
 首选官方 CLI 的 GitHub 规格安装：
 
@@ -12,82 +25,70 @@ Capy 任务平台工具（非模型提供方）。普通产品登录委托尚未
 magpie plugin add github:grokboot/magpie-capy
 ```
 
-桌面版：**插件 → 添加插件 → GitHub**，填入 `grokboot/magpie-capy`。
-
-`Discover` 中本插件应标为 **Unofficial**，不是 Capy 或 Magpie 官方插件。GitHub 的 `magpie-plugin` topic 是官方未审阅收录路径，但不保证立即出现：仓库已被 GitHub 搜索索引，只有实际应用目录包含本插件后才可能显示。GitHub 预构建目录在 48 小时内优先；目录不可用时回退到客户端缓存的 topic 查询（约 10 分钟）或实时 GitHub 查询。精选 registry 是独立的推荐列表，最多每 6 小时刷新。没有“等 10 分钟就会出现”的承诺，当前也不宣称 Discover 已显示。
-
-发布归档解压后的顶层文件夹同样固定为 `magpie-capy/`：
+桌面版：**插件 → 添加插件 → GitHub**，填入 `grokboot/magpie-capy`。发布归档顶层文件夹固定为 `magpie-capy/`：
 
 ```bash
-tar -xzf magpie-capy-0.2.2.tgz
+tar -xzf magpie-capy-0.3.0.tgz
 magpie plugin add ./magpie-capy
 ```
 
-0.2.2 归档保持不可变。npm 发布元数据已准备；0.2.3 计划在 GUI 验收通过且 npm 认证就绪后公开发布，当前不声称已发布。发布后可用 npm 安装，GitHub 安装仍作为替代路径；标准 npm tgz 顶层为 `package/`，不代表解压后手动文件夹安装是稳定路径。
+也可直接装源码目录。0.2.3 的包与 tag 不改；本版本是新的预览版本。`Discover` 中本插件应标为 **Unofficial**，不是 Capy 或 Magpie 官方插件。GitHub 发布已获授权；npm 发布仍待认证，不声称 npm 已发布。
 
-开发时也可直接装源码目录：
+## 登录/配置
 
-```bash
-git clone https://github.com/grokboot/magpie-capy
-magpie plugin add ./magpie-capy
-```
+### API Key（默认可用）
 
-添加、更新、开关插件会重启插件宿主；修改源码后关闭再开启插件。
+1. 在 **Capy 设置 → API** 手动创建组织 API Key（明文通常只显示一次）。
+2. 在 Magpie 的 **插件 → Capy** 行点击 **配置 Capy 组织 API Key**；宿主用遮罩输入框询问。
+3. Magpie 只有在一次有界（8 秒）只读 `GET /api/v1/projects` 验证成功后才保存；取消或失败不保存。
+4. 密钥由宿主保存在 `plugin-auth.json`（600 权限）。插件不写自己的密钥文件，也不把密钥放进公开选项、页面、URL、日志或工具结果。
 
-## 配置 API Key
+兼容旧安装：`CAPY_API_KEY` 仍有效且优先；用量卡片会说明实际来源。环境变量格式无效会显示配置错误。Magpie 可保存多个宿主账号，但工具调用没有账号选择器；检测到多个账号时工具会安全停止。`magpie plugin logout capy` 只清本地凭据，不是服务端撤销。
 
-1. 先用正常网页/桌面入口登录 capy.ai（这一步只是使用产品，不会让 Magpie 自动连接）。
-2. 在页面中进入 **Settings → API**，手动创建组织 API Key（明文只显示一次）。这是明确的手动委托步骤，不是 OAuth。
-3. 在 Magpie 的 **插件 → Capy** 行点击 **配置 Capy 组织 API Key**；宿主用遮罩输入框询问密钥。Magpie 只有在一次有界（8 秒）的只读 `GET /api/v1/projects` 验证成功后才保存它；取消或验证失败不会保存任何密钥。
-4. 密钥由宿主保存在 Magpie 自己的 `plugin-auth.json`（600 权限）。本插件不写自己的密钥文件，也不会把密钥放进公开选项、页面、URL、日志或工具结果。
-5. 加载/刷新时会复用这次只读验证结果。用量卡片会区分“未配置 / 连接未验证 / 只读连接已验证”；401（过期或撤销）会给出可读提示并标记登录过期，403 会说明是主体角色或项目范围不足，Magpie 不会为此提权。
+### 浏览器 OAuth/OIDC（可选，需自备公开 client 配置）
 
-兼容旧安装：环境变量 `CAPY_API_KEY` 仍有效且优先于已保存登录；用量卡片会明确工具实际使用哪个来源。环境变量格式无效会显示配置错误，不会谎称已验证。
-
-Magpie 可保存多个宿主账号，但工具调用没有账号选择器。检测到多个账号时，工具会安全停止并提示只保留一个账号或显式设置 `CAPY_API_KEY`，不会静默使用最后登录的账号。注意 `CAPY_API_KEY` 会覆盖 UI 登录状态；本地 logout 只清除本地保存的授权，不等于服务端撤销。Capy Dock 配对不是组织 REST API Key。
-
-### 清除
-
-本地清除请使用官方 CLI 路径，执行后按需移除环境变量（本次验收未找到 Magpie 宿主 UI 可用的本地退出入口；移除插件会卸载但保留授权，移除 Provider 仍保持 Capy 登录状态，二者都不是退出登录）：
+本版本新增一个真实的 PKCE 浏览器方法，但它**不是 Capy 官方第三方 client**，默认不出现；设置以下环境变量后才出现：
 
 ```bash
-magpie plugin logout capy
+export CAPY_OAUTH_ISSUER=https://your-issuer.example
+export CAPY_OAUTH_CLIENT_ID=your-public-client-id
+export CAPY_OAUTH_REDIRECT_URI=http://127.0.0.1:53682/callback
+# 可选
+export CAPY_OAUTH_SCOPES="openid profile email"
+export CAPY_OAUTH_AUDIENCE=capy
+# 仅 confidential client 才需要；public PKCE client 留空
+# export CAPY_OAUTH_CLIENT_SECRET=...
 ```
 
-然后按需移除 `CAPY_API_KEY`。
+方法使用 OIDC discovery、S256 PKCE、state 校验和本机 loopback 回调，成功后按 Magpie 的 `oauth` 凭据保存 access/refresh/expires；配置了 refresh token 时，宿主 `auth.refresh` 使用 `refresh_token` grant。`CAPY_OAUTH_REDIRECT_URI` 必须是 `http://127.0.0.1` / `localhost` 回环地址。
 
-- 退出后插件会在下一次宿主 provider 刷新时清空内存密钥和验证缓存，之后的工具调用会按“缺少凭据”失败；如果环境变量 `CAPY_API_KEY` 已设置，工具仍会使用它（环境变量优先），此时清除 Magpie 登录不会停用工具。
-- 本地清除/退出只删除本机凭据，**不会撤销 Capy 服务端的 Key**；撤销与重建请在 Capy 的 Settings → API 操作。
+**边界**：Capy 是否接受该 issuer 的 access token 作为 `/api/v1` bearer、以及是否登记该 client/redirect/audience，未由公开契约确认。使用前请确认 issuer 与 token 受众；不能宣传成“Capy 官方网页授权”。Capy 桌面确有 Clerk → `capy://app/` → mintToken/rotatedJwt 链，但本轮没有把它做成插件登录契约。
 
-## 把工具交给智能体
+## 模型目录、额度与任务
 
-看到 **工具，已对智能体隐藏** 时，这是 Magpie 的暴露设置，不是插件损坏。点击 **交给智能体**，再到 Library → MCP 或路由器中确认目标智能体。可按智能体分别开启/关闭。也可以手动把 `http://127.0.0.1:3425/mcp/magpie/tools` 加到 MCP 客户端。隐藏状态会跨更新、重启和开关保留；没有插件清单级的默认暴露覆盖。
+- `provider.models` 读取公开 `GET /api/v1/models`，按账户缓存 5 分钟；只映射契约字段 `id/name/reasoningModes/fast/pro/ultrafast/billing/route`。`reasoningModes` 映射为 `variants`；不填契约没有的 context/output/tool 支持，也不伪造 provider 徽标。
+- `auth.usage` 读取 `GET /api/v1/usage/balance`，再读当前订阅周期（无 plan 时为 UTC 当月）的 `GET /api/v1/usage`。窗口区分：剩余美元、`unlimited`、无信用余额、周期总消费/已计费；`null` 不显示为 0。失败时显示“额度未知”及原因，例如 401/403/503/超时。
+- 任务工具：`list_tasks`、`get_task`、`list_task_messages`、`watch_task` 使用公开 tasks 端点；`watch_task` 的 `time_limit` 不是任务失败或完成。
+- `run_task`：创建线程（可选 `model`）→ 列出该线程任务 → 有界观察最新任务。返回 `thread`、`tasks`、`observation`、`complete`、`taskPending`。`complete` 只由任务流自己的 `done` 帧置为 true；超时/无任务返回 false，不冒充完成。创建可能计费、执行命令或创建 PR。
 
-## 写入
+## 写入与工具
 
-默认关闭。需要时设置环境变量：
+默认关闭。启用方式：非密钥 Options `{"allowWrites":true}`，或环境变量 `CAPY_ALLOW_WRITES=true`。每次写入仍须 `confirm:true`；它只是调用方声明，不是人工审批边界。共 15 个工具：
 
-```bash
-export CAPY_ALLOW_WRITES=true
+```text
+list_projects, list_threads, get_thread, list_messages,
+list_subagents, list_subagent_messages, watch_thread,
+create_thread, send_message, interrupt_thread,
+list_tasks, get_task, list_task_messages, watch_task, run_task
 ```
 
-或使用**非密钥**插件选项 `{"allowWrites":true}`。每次写入仍须 `confirm:true`；它只是调用方声明，不是人工审批或授权边界。创建/发消息可能执行命令、消耗额度或创建 PR。
-
-## 从 0.1.0 升级
-
-在 Magpie 中更新或重新添加本目录。已保存的插件登录位于 Magpie 的 `plugin-auth.json`，通常不会因重新加载源码而丢失；环境变量也不受影响。升级后请重新检查插件行图标、版本与“配置/登录”入口。
-
-## 已知宿主边界
-
-- 本地文件夹详情与 npm registry 卡片使用的元数据来源不同，仅靠 `package.json` 无法完全补齐 registry 的版本/许可证/摘要展示。
-- 发布归档使用仓库内脚本把归档条目和 gzip 头时间改写为真实构建时间（或显式 `SOURCE_DATE_EPOCH`），避免 npm 归一化的 1985 时间；本地文件夹复制后仍可能沿用文件系统时间。
-- “已对智能体隐藏”、MCP 路由和按智能体授权都由 Magpie 宿主控制。
+`create_thread`/`send_message`/`run_task` 可传 `model: {modelId, reasoningMode?, modes?}`；省略时由 Capy 按公开默认链选择。
 
 ## 测试与限制
 
-- 运行：`bun run check`、`bun run check:openapi`、`npm pack --dry-run`。
-- 测试只使用合成密钥和 mock fetch，不发起真实 Capy 请求。
-- 0.2.1 的历史 GUI 验收覆盖图标、中文 README、版本/MIT、Options `false` 持久化和登录/取消流程，不适用于新版本。0.2.3 的 GUI 验收已通过名称/图标、中文 README、10 个工具、授权状态和 Options `allowWrites=false` 持久化；GUI 本地退出和提示取消未验证，不能写成完整 GUI 已通过。
-- 本插件只提供 Capy 任务工具，使用 Magpie 的零模型认证桥，不是聊天推理提供方。登录不使用 OAuth：正常路径是 Capy 网页邮箱登录，在 Settings 创建 API Key，再在 Magpie 的密码输入框中手动粘贴并显式委托。Key 本身不是只读类型，也没有自带 scope，权限随 principal；建议使用专用只读服务账号并设置到期时间（如 30 天），但未验证具体 scope、principal 映射或到期元数据。写入默认关闭，保存 `allowWrites` 或设置 `CAPY_ALLOW_WRITES=true` 后仍需每次 `confirm:true`。基础原生认证、只读项目列表（HTTP 200，空结果）、无 `CAPY_API_KEY` 环境下带持久认证重启、官方退出后无 `CAPY_API_KEY` 重启工具未授权（`isError: true`）已做端到端验证；没有项目数据，因此 subagent、SSE、message 和 write 路径未做实际运行验证；测试套件共 117 项。官方 CLI 本地退出只清除本地凭据，不是服务端吊销；`CAPY_API_KEY` 可覆盖 UI 退出并继续授权工具，这是已知风险。0.2.3 GUI 仅通过上述子集，GUI 本地退出和提示取消未验证，完整 GUI 尚未通过。0.2.3 的 GitHub 发布已获授权，npm 发布仍待认证，不声称 npm 已发布；发布包已存在，使用官方 Magpie CLI 和稳定插件 ID 的标准安装方式；npm 发布后使用标准 npm 安装。不要手动加载解压后的包目录。
-- 受控端到端验证使用已批准的服务账号 Key，官方 Magpie CLI 原生授权保存到宿主存储后，执行一次公开只读 `list_projects`（HTTP 200，空列表）；网关重启后可从持久化授权继续成功，官方 CLI 本地 logout 后工具无授权失败。117 个 mock 测试在 UTC 与 Asia/Shanghai 时区通过，typecheck 通过，未暴露原始 payload、日志或 Key。由于没有项目数据，未覆盖 subagent、SSE、消息创建/发送/打断，也未验证全部 API；0.2.3 GUI 仅通过上述子集，GUI 本地退出和提示取消未验证。CLI 本地 logout 只清除本地授权，不等于服务端撤销；环境变量 `CAPY_API_KEY` 可覆盖 UI 退出并保持授权。
-- 归档测试直接校验 tar 头 epoch，并在 UTC、Asia/Shanghai、America/Los_Angeles 三种时区下验证条目元数据一致，不依赖本地时区显示。详见 `docs/compatibility.md`、`docs/ux-auth-exposure.md`。
+- `bun run check`、`bun run check:openapi`、`npm pack --dry-run`。
+- 156 个离线 mock 测试、typecheck 通过；覆盖动态模型目录、真实额度窗口、任务生命周期、`run_task`、OAuth PKCE/回调/取消/刷新、写入守卫和参数验证。测试只使用合成凭据和 mock fetch，不发起真实 Capy 请求，不读取运行时 auth store/cookie/session 文件。
+- 本 turn 未做真实 Capy 登录、额度、生成、任务或写请求；因此不声称这些路径已联网验收。Capy 是否接受 OAuth token 是上述外部依赖。
+- `provider` 徽标由 Magpie 宿主分类决定；本插件不伪造模型来强制显示。`Tools` 暴露由宿主控制；看到“已对智能体隐藏”时点击 **交给智能体**。
+- CLI 本地 logout 只清本地凭据；`CAPY_API_KEY` 可覆盖 UI 退出并继续授权工具。多账号时工具 fail closed。
+- 归档脚本把条目/gzip 时间改写为真实构建时间或显式 `SOURCE_DATE_EPOCH`；归档测试在 UTC/Asia/Shanghai/America/Los_Angeles 校验条目元数据。

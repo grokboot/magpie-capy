@@ -74,14 +74,19 @@ describe("plugin entry and tool schemas", () => {
     const hooks = await entry.CapyTools();
     expect(Object.keys(hooks.tool).sort()).toEqual([
       "create_thread",
+      "get_task",
       "get_thread",
       "interrupt_thread",
       "list_messages",
       "list_projects",
       "list_subagent_messages",
       "list_subagents",
+      "list_task_messages",
+      "list_tasks",
       "list_threads",
+      "run_task",
       "send_message",
+      "watch_task",
       "watch_thread",
     ]);
   });
@@ -89,14 +94,19 @@ describe("plugin entry and tool schemas", () => {
   test("all tool schemas are closed JSON objects with documented capability names", () => {
     const expected = [
       "create_thread",
+      "get_task",
       "get_thread",
       "interrupt_thread",
       "list_messages",
       "list_projects",
       "list_subagent_messages",
       "list_subagents",
+      "list_task_messages",
+      "list_tasks",
       "list_threads",
+      "run_task",
       "send_message",
+      "watch_task",
       "watch_thread",
     ];
     expect(Object.keys(TOOL_SCHEMAS).sort()).toEqual(expected);
@@ -116,7 +126,7 @@ describe("plugin entry and tool schemas", () => {
   });
 
   test("write tools require confirm and caller-supplied idempotency where supported", () => {
-    for (const name of ["create_thread", "send_message", "interrupt_thread"] as const) {
+    for (const name of ["create_thread", "send_message", "interrupt_thread", "run_task"] as const) {
       const schema = TOOL_SCHEMAS[name] as {
         required: string[];
         properties: Record<string, unknown>;
@@ -452,5 +462,163 @@ describe("write guards and payloads", () => {
     );
     expect(error.retryAfterSeconds).toBe(2);
     expect(stub.calls).toHaveLength(1);
+  });
+});
+
+
+const modelSelection = {
+  modelId: "capy-coder",
+  reasoningMode: "high",
+  modes: { fast: true },
+};
+const task = {
+  id: "task_1",
+  threadId: "jam_01ABC",
+  parentId: "jam_01ABC",
+  taskPath: "1",
+  projectId: "project_alpha",
+  title: null,
+  status: "done",
+  archived: false,
+  usage: { llmCredits: 1, imageCredits: 0, vmCredits: 0, totalCredits: 1 },
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+  lastActivityAt: null,
+};
+
+describe("model selection and task lifecycle tools", () => {
+  test("create_thread and send_message forward the documented model object", async () => {
+    const stub = makeFetch((url) => {
+      if (url.pathname === "/api/v1/threads") return jsonResponse(thread);
+      return jsonResponse({ id: "01J00000000000000000000002", deduped: false });
+    });
+    const tools = await stubTools(stub, { ...TEST_ENV, CAPY_ALLOW_WRITES: "true" });
+
+    await tools.create_thread!.execute({
+      requestId: "request-model",
+      projectId: "project_alpha",
+      message: "hello",
+      model: modelSelection,
+      confirm: true,
+    });
+    expect(requestBody(stub.calls[0]!).model).toEqual(modelSelection);
+
+    await tools.send_message!.execute({
+      threadId: "jam_01ABC",
+      text: "next",
+      clientKey: "key-model",
+      model: modelSelection,
+      confirm: true,
+    });
+    expect(requestBody(stub.calls[1]!).model).toEqual(modelSelection);
+  });
+
+  test("task reads use the documented task paths and preserve cursors", async () => {
+    const stub = makeFetch((url) => {
+      if (url.pathname === "/api/v1/threads/jam_01ABC/tasks") {
+        return jsonResponse({ items: [task], cursor: "20:next" });
+      }
+      if (url.pathname === "/api/v1/tasks/task_1/messages") {
+        return jsonResponse({ items: [], cursor: "01J00000000000000000000001" });
+      }
+      return jsonResponse(task);
+    });
+    const tools = await stubTools(stub);
+
+    const page = (await tools.list_tasks!.execute({ threadId: "jam_01ABC", limit: 10 })) as {
+      cursor: string;
+    };
+    expect(page.cursor).toBe("20:next");
+    expect(stub.calls[0]?.url.pathname).toBe("/api/v1/threads/jam_01ABC/tasks");
+    expect(stub.calls[0]?.url.searchParams.get("limit")).toBe("10");
+
+    const one = (await tools.get_task!.execute({ taskId: "task_1" })) as { id: string };
+    expect(one.id).toBe("task_1");
+    expect(stub.calls[1]?.url.pathname).toBe("/api/v1/tasks/task_1");
+
+    await tools.list_task_messages!.execute({
+      taskId: "task_1",
+      after: "01J00000000000000000000001",
+    });
+    expect(stub.calls[2]?.url.pathname).toBe("/api/v1/tasks/task_1/messages");
+    expect(stub.calls[2]?.url.searchParams.get("after")).toBe("01J00000000000000000000001");
+  });
+
+  test("watch_task observes the task stream without claiming completion at EOF", async () => {
+    const stub = makeFetch((url) => {
+      expect(url.pathname).toBe("/api/v1/tasks/task_1/stream");
+      return sseResponse(
+        'event: task\ndata: {"status":"working"}\n\n' +
+          'event: transcript\nid: 01J00000000000000000000001\ndata: {"id":"m1","source":"assistant","text":"hi","createdAt":"2026-01-01T00:00:00.000Z"}\n\n',
+      );
+    });
+    const tools = await stubTools(stub);
+    const out = (await tools.watch_task!.execute({ taskId: "task_1", maxSeconds: 1 })) as {
+      taskId: string;
+      status: string;
+      transcript: { id: string }[];
+      ended: string;
+      complete: boolean;
+    };
+    expect(out.taskId).toBe("task_1");
+    expect(out.status).toBe("working");
+    expect(out.transcript[0]?.id).toBe("m1");
+    expect(out.ended).toBe("connection_closed");
+    expect(out.complete).toBe(false);
+  });
+
+  test("run_task is an explicit create/list/watch proxy with an honest complete flag", async () => {
+    const stub = makeFetch((url, init) => {
+      if (init.method === "POST" && url.pathname === "/api/v1/threads") return jsonResponse(thread);
+      if (url.pathname === "/api/v1/threads/jam_01ABC/tasks") {
+        return jsonResponse({ items: [task], cursor: null });
+      }
+      if (url.pathname === "/api/v1/tasks/task_1/stream") {
+        return sseResponse('event: done\ndata: {}\n\n');
+      }
+      return jsonResponse({ _tag: "capy/InvalidRequest" }, 400);
+    });
+    const tools = await stubTools(stub, { ...TEST_ENV, CAPY_ALLOW_WRITES: "true" });
+    const out = (await tools.run_task!.execute({
+      requestId: "request-run",
+      projectId: "project_alpha",
+      message: "do the task",
+      model: modelSelection,
+      waitSeconds: 1,
+      confirm: true,
+    })) as {
+      thread: { id: string };
+      tasks: { id: string; status: string }[];
+      observation: { taskId: string; ended: string; complete: boolean };
+      complete: boolean;
+      taskPending: boolean;
+    };
+
+    expect(out.thread.id).toBe("jam_01ABC");
+    expect(out.tasks[0]).toMatchObject({ id: "task_1", status: "done" });
+    expect(out.observation).toMatchObject({ taskId: "task_1", ended: "done", complete: true });
+    expect(out.complete).toBe(true);
+    expect(out.taskPending).toBe(false);
+    expect(requestBody(stub.calls[0]!).model).toEqual(modelSelection);
+    expect(stub.calls.map((call) => call.url.pathname)).toEqual([
+      "/api/v1/threads",
+      "/api/v1/threads/jam_01ABC/tasks",
+      "/api/v1/tasks/task_1/stream",
+    ]);
+  });
+
+  test("run_task is write-gated before any network call", async () => {
+    const stub = makeFetch(() => jsonResponse(thread));
+    const tools = await stubTools(stub, TEST_ENV);
+    await expectCode(
+      tools.run_task!.execute({
+        requestId: "request-run",
+        projectId: "project_alpha",
+        message: "do the task",
+        confirm: true,
+      }),
+      "writes_disabled",
+    );
+    expect(stub.calls).toHaveLength(0);
   });
 });

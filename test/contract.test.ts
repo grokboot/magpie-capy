@@ -217,3 +217,81 @@ describe("Capy OpenAPI contract fixture", () => {
     }
   });
 });
+
+
+describe("Capy model, usage, and task contract", () => {
+  test("model discovery and both usage reads use the documented GET paths", () => {
+    expect(fixture.operations["models.list"]).toMatchObject({ method: "GET", path: "/api/v1/models" });
+    expect(fixture.operations["usage.balance"]).toMatchObject({
+      method: "GET",
+      path: "/api/v1/usage/balance",
+    });
+    expect(fixture.operations["usage.get"]).toMatchObject({ method: "GET", path: "/api/v1/usage" });
+    expect(paramsFor(fixture.operations["models.list"]!, "query")).toEqual([]);
+    expect(paramsFor(fixture.operations["usage.balance"]!, "query")).toEqual([]);
+    expect(paramsFor(fixture.operations["usage.get"]!, "query").map((p) => p.name).sort()).toEqual([
+      "from",
+      "to",
+    ]);
+  });
+
+  test("model selection is the documented optional field on both writes", () => {
+    for (const operationId of ["threads.create", "messages.send"]) {
+      expect(fixture.operations[operationId]!.request!.fields).toContain("model");
+    }
+    const selection = fixture.schemas.ModelSelection!;
+    expect(selection.required).toEqual(["modelId"]);
+    expect(selection.properties?.reasoningMode).toBeDefined();
+    expect(selection.properties?.modes).toBeDefined();
+  });
+
+  test("model and balance response validators cover documented required fields", () => {
+    expect(fixture.schemas.ModelListEncoded?.required).toEqual(
+      expect.arrayContaining(["items", "default"]),
+    );
+    expect(fixture.schemas.ModelEncoded?.required).toEqual(
+      expect.arrayContaining(["id", "name", "billing", "route", "reasoningModes"]),
+    );
+    expect(fixture.schemas.UsageBalanceEncoded?.required).toEqual(
+      expect.arrayContaining(["currency", "remainingDollars", "unlimited", "periodStart", "periodEnd"]),
+    );
+    expect(fixture.schemas.UsageReportEncoded?.required).toEqual(
+      expect.arrayContaining(["from", "to", "totals", "tokens"]),
+    );
+  });
+
+  test("task tools use the documented list/get/messages/stream paths", () => {
+    const expected: Record<string, [string, string]> = {
+      list_tasks: ["GET", "/api/v1/threads/{threadId}/tasks"],
+      get_task: ["GET", "/api/v1/tasks/{taskId}"],
+      list_task_messages: ["GET", "/api/v1/tasks/{taskId}/messages"],
+      watch_task: ["GET", "/api/v1/tasks/{taskId}/stream"],
+    };
+    for (const [tool, [method, path]] of Object.entries(expected)) {
+      const operationId = {
+        list_tasks: "tasks.list",
+        get_task: "tasks.get",
+        list_task_messages: "tasks.messages",
+        watch_task: "streams.task",
+      }[tool]!;
+      expect(fixture.operations[operationId]).toMatchObject({ method, path });
+      expect((schema(tool as keyof typeof TOOL_SCHEMAS) as unknown as Record<string, unknown>).type).toBe("object");
+    }
+    expect(fixture.schemas.TaskPageEncoded?.required).toEqual(
+      expect.arrayContaining(["items", "cursor"]),
+    );
+    expect(fixture.schemas.TaskEncoded?.required).toEqual(
+      expect.arrayContaining(["id", "threadId", "parentId", "taskPath", "status", "usage"]),
+    );
+  });
+
+  test("run_task sends only documented create fields plus local guards", () => {
+    const create = fixture.operations["threads.create"]!.request!.fields;
+    const args = schema("run_task");
+    for (const field of Object.keys(args.properties)) {
+      if (field === "confirm" || field === "waitSeconds") continue;
+      expect(create).toContain(field);
+    }
+    expect(args.required).toEqual(expect.arrayContaining(["requestId", "projectId", "message", "confirm"]));
+  });
+});
