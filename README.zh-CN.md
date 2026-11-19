@@ -28,7 +28,9 @@ magpie plugin add ./magpie-capy
 ```bash
 git clone https://github.com/grokboot/magpie-capy
 magpie plugin add ./magpie-capy
-```添加、更新、开关插件会重启插件宿主；修改源码后关闭再开启插件。
+```
+
+添加、更新、开关插件会重启插件宿主；修改源码后关闭再开启插件。
 
 ## 配置 API Key
 

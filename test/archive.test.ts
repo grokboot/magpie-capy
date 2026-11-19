@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -34,7 +34,7 @@ const readEntries = (archive: string): Entry[] => {
 };
 
 const pack = (out: string, timeZone: string) => {
-  const built = spawnSync("bun", ["scripts/pack-release.ts", out], {
+  const built = spawnSync(process.execPath, ["scripts/pack-release.ts", out], {
     cwd: root,
     env: { ...process.env, SOURCE_DATE_EPOCH: String(SOURCE_DATE_EPOCH), TZ: timeZone },
     encoding: "utf8",
@@ -44,7 +44,7 @@ const pack = (out: string, timeZone: string) => {
 };
 
 describe("release archive", () => {
-  test("stamps every entry with the real build epoch and packages metadata without secrets", () => {
+  test("stamps every entry with the pinned SOURCE_DATE_EPOCH and packages metadata without secrets", () => {
     const out = mkdtempSync(join(tmpdir(), "magpie-capy-archive-test-"));
     try {
       const archive = pack(out, "UTC");
@@ -79,7 +79,7 @@ describe("release archive", () => {
       const zones = ["UTC", "Asia/Shanghai", "America/Los_Angeles"];
       const layouts = zones.map((zone) => {
         const dir = join(out, zone.replace("/", "-"));
-        spawnSync("mkdir", ["-p", dir]);
+        mkdirSync(dir, { recursive: true });
         return readEntries(pack(dir, zone));
       });
       for (const layout of layouts) expect(layout).toEqual(layouts[0]!);
