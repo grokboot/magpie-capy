@@ -21,14 +21,23 @@ export interface HostAuthState {
 
 interface VerifyResult {
   ok: boolean;
-  code: "ok" | "unauthorized" | "network" | "configuration";
+  code: "ok" | "unauthorized" | "permission" | "network" | "configuration";
   projectCount: number | null;
   error: string | null;
 }
 
 const VERIFY_TTL_MS = 60_000;
+const VERIFY_TIMEOUT_MS = 8_000;
 const MULTI_ACCOUNT_ERROR =
   "检测到多个 Capy 宿主账号。工具调用没有账号上下文，因此不会猜测使用哪个账号。请只保留一个 Capy 登录，或设置 CAPY_API_KEY 环境变量来明确工具使用的密钥；更改账号后请重新加载插件。";
+const LOGOUT_SCOPE =
+  "在 Magpie 中移除或清除登录只删除本机保存的 Key，不会撤销 Capy 服务端的 Key；撤销与重建请在 Capy 的 Settings → API 中操作。";
+
+function envScopeNote(hasEnvKey: boolean): string {
+  return hasEnvKey
+    ? "环境变量优先：仅清除 Magpie 登录不会停用 CAPY_API_KEY。" + LOGOUT_SCOPE
+    : LOGOUT_SCOPE;
+}
 
 function initial(): HostAuthState {
   return {
@@ -100,7 +109,7 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
     if (state.key !== key) {
       generation += 1;
       state = { ...initial(), key };
-      cache = null;
+      if (cache?.key !== key) cache = null;
     }
     return { key, error: multiAccount ? MULTI_ACCOUNT_ERROR : null };
   };
@@ -114,7 +123,7 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
       const client = createCapyClient({
         apiKey: key,
         ...(runtime.fetchImpl !== undefined ? { fetchImpl: runtime.fetchImpl } : {}),
-        timeoutMs: 8_000,
+        timeoutMs: VERIFY_TIMEOUT_MS,
       });
       const projects = await client.listProjects();
       result = { ok: true, code: "ok", projectCount: projects.items.length, error: null };
@@ -124,7 +133,17 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
           ok: false,
           code: "unauthorized",
           projectCount: null,
-          error: "Capy API Key 无效或已撤销（HTTP 401）。请在 Capy 设置 > API 重新创建并配置。",
+          error:
+            "Capy 未接受该 API Key（HTTP 401）：它可能已过期或被撤销。请在 Capy 的 Settings → API 中新建 Key，然后在 Magpie 中移除旧登录并重新添加。" +
+            LOGOUT_SCOPE,
+        };
+      } else if (error instanceof CapyError && error.code === "forbidden") {
+        result = {
+          ok: false,
+          code: "permission",
+          projectCount: null,
+          error:
+            "该 Key 的只读项目访问被拒绝（HTTP 403）。Key 所属主体可能没有项目读取权限，或项目范围不含任何项目；请让组织管理员在 Capy 中调整角色/项目访问，Magpie 不会为此提权。",
         };
       } else if (error instanceof CapyError && error.code === "configuration") {
         result = {
@@ -133,6 +152,15 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
           projectCount: null,
           error: "Capy API Key 格式无效，请重新复制后配置。",
         };
+      } else if (error instanceof CapyError && error.code === "timeout") {
+        result = {
+          ok: false,
+          code: "network",
+          projectCount: null,
+          error: `只读验证请求超时（${VERIFY_TIMEOUT_MS / 1000} 秒内未完成 GET /api/v1/projects）。请检查网络后在 Capy 用法卡片中重试。`,
+        };
+      } else if (error instanceof CapyError && error.code === "aborted") {
+        result = { ok: false, code: "network", projectCount: null, error: "验证已取消，未保存任何密钥。" };
       } else {
         result = {
           ok: false,
@@ -142,7 +170,7 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
         };
       }
     }
-    cache = { key, at: now, result };
+    if (result.ok) cache = { key, at: now, result };
     return result;
   };
 
@@ -163,7 +191,7 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
     config: async (cfg: { provider?: Record<string, unknown> }) => {
       cfg.provider ??= {};
       cfg.provider.capy ??= {
-        name: "Capy（任务工具）",
+        name: "Capy",
         api: "https://api.capy.ai",
         models: {},
       };
@@ -175,6 +203,49 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
           type: "api" as const,
           label: "配置 Capy 组织 API Key",
           placeholder: "capy_…",
+          // The host saves an api key as-is unless the method validates it with
+          // authorize(). A password prompt makes the host ask for the key itself
+          // (masked), and nothing is persisted unless authorize returns success.
+          prompts: [
+            {
+              type: "password" as const,
+              key: "key",
+              message: "Capy 组织 API Key（在 capy.ai 正常登录后到 Settings → API 手动创建）",
+              placeholder: "capy_…",
+              validate: (value: unknown): string | null => {
+                if (typeof value !== "string") return "请粘贴 Capy API Key。";
+                try {
+                  normalizeApiKey(value, "Capy API Key");
+                  return null;
+                } catch {
+                  return "Key 不能为空，也不能含空格或换行；请从 Capy Settings → API 重新复制。";
+                }
+              },
+            },
+          ],
+          async authorize(
+            inputs: Record<string, unknown> = {},
+            context: { signal?: AbortSignal } = {},
+          ): Promise<{ type: "success"; key: string } | { type: "failed"; error: string }> {
+            let key: string;
+            try {
+              key = normalizeApiKey(typeof inputs.key === "string" ? inputs.key : "", "Capy API Key");
+            } catch {
+              return { type: "failed", error: "Capy API Key 为空或格式不正确，未保存。请重新复制后粘贴。" };
+            }
+            if (context.signal?.aborted) {
+              return { type: "failed", error: "登录已取消，未保存任何密钥。" };
+            }
+            const result = await verify(key);
+            if (context.signal?.aborted) {
+              cache = null;
+              return { type: "failed", error: "登录已取消，未保存任何密钥。" };
+            }
+            if (!result.ok) return { type: "failed", error: result.error ?? "Capy 连接未通过验证，未保存。" };
+            // The host writes the key only after this success; Magpie is still
+            // not "connected" until the host hands it back through getAuth().
+            return { type: "success", key };
+          },
         },
       ],
       async loader(getAuth: () => Promise<unknown>) {
@@ -186,7 +257,7 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
         const fromEnv = envKey(env);
         if (fromEnv.error) {
           return {
-            plan: "Capy 任务 API",
+            plan: "Capy",
             user: "环境变量配置错误",
             windows: [],
             error: fromEnv.error,
@@ -194,7 +265,7 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
         }
         if (multiAccount) {
           return {
-            plan: "Capy 任务 API",
+            plan: "Capy",
             user: "多个宿主账号，工具已停止自动选择",
             windows: [],
             error: MULTI_ACCOUNT_ERROR,
@@ -205,10 +276,13 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
         const key = fromEnv.key ?? remembered.key;
         if (!key) {
           return {
-            plan: "Capy 任务 API",
+            plan: "Capy",
             user: "未配置",
             windows: [],
-            error: remembered.error ?? state.error ?? "请在 Capy 插件行点击“配置 Capy 组织 API Key”。",
+            error:
+              remembered.error ??
+              state.error ??
+              "未连接 Capy。请先在 capy.ai 用正常网页/桌面登录进入产品，再到 Capy 的 Settings → API 手动创建组织 API Key，然后点击“配置 Capy 组织 API Key”粘贴。这是明确的手动委托步骤，不是 OAuth，网页登录本身不会让 Magpie 变为已连接。",
           };
         }
 
@@ -217,7 +291,7 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
         const applied = source === "host" && remembered.key ? applyIfCurrent(remembered.key, gen, result) : true;
         if (!applied) {
           return {
-            plan: "Capy 任务 API",
+            plan: "Capy",
             user: "登录状态在验证期间发生变化",
             windows: [],
             error: "验证结果已过期；请重新打开用量或插件页刷新状态。",
@@ -225,14 +299,15 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
         }
         const shadow =
           fromEnv.key && remembered.key && fromEnv.key !== remembered.key
-            ? "（环境变量优先；宿主登录密钥不用于工具）"
+            ? "（环境变量优先；Magpie 登录的 Key 不用于工具）"
             : "";
+        const verified = result.ok ? `只读连接已验证 · ${result.projectCount ?? 0} 个项目` : "连接未验证";
         return {
-          plan: "Capy 任务 API",
+          plan: "Capy",
           user:
             source === "env"
-              ? `工具使用环境变量 CAPY_API_KEY · ${result.ok ? `只读连接已验证 · ${result.projectCount ?? 0} 个项目` : "连接未验证"}${shadow}`
-              : `工具使用 Magpie 登录 · ${result.ok ? `只读连接已验证 · ${result.projectCount ?? 0} 个项目` : "连接未验证"}`,
+              ? `工具使用环境变量 CAPY_API_KEY · ${verified}${shadow} · ${envScopeNote(true)}`
+              : `工具使用 Magpie 登录 · ${verified} · ${envScopeNote(false)}`,
           windows: [],
           ...(result.ok
             ? {}
@@ -258,7 +333,9 @@ export function createCapyAuth(runtime: AuthRuntime = {}) {
         applyIfCurrent(remembered.key, gen, result);
         if (result.code === "unauthorized" && gen === generation) {
           throw Object.assign(
-            new Error("Capy API Key 未通过只读验证。请在 Capy 设置 > API 重新创建后重新登录。"),
+            new Error(
+              "Capy API Key 未通过只读验证（可能已过期或被撤销）。请在 Capy 的 Settings → API 新建 Key，并在 Magpie 中移除旧登录后重新添加。",
+            ),
             { signIn: "expired" },
           );
         }
