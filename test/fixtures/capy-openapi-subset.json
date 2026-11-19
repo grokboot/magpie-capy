@@ -1,0 +1,1584 @@
+{
+  "source": "https://docs.capy.ai/openapi.json",
+  "openapi": "3.1.0",
+  "title": "Capy API",
+  "version": "1.0.0",
+  "server": "https://api.capy.ai",
+  "operations": {
+    "projects.list": {
+      "method": "GET",
+      "path": "/api/v1/projects",
+      "operationId": "projects.list",
+      "parameters": [],
+      "request": null,
+      "response200": {
+        "$ref": "#/components/schemas/ProjectListEncoded"
+      },
+      "errorTags": [
+        {
+          "status": "401",
+          "description": "capy/Unauthorized",
+          "headers": {}
+        },
+        {
+          "status": "403",
+          "description": "capy/Forbidden",
+          "headers": {}
+        },
+        {
+          "status": "429",
+          "description": "capy/RateLimited",
+          "headers": {
+            "retry-after": {
+              "schema": {
+                "type": "integer"
+              },
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    "threads.list": {
+      "method": "GET",
+      "path": "/api/v1/threads",
+      "operationId": "threads.list",
+      "parameters": [
+        {
+          "name": "projectId",
+          "in": "query",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "schema": {
+            "type": "integer"
+          },
+          "required": false
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "pattern": "^\\d{1,15}:.+"
+          },
+          "required": false
+        }
+      ],
+      "request": null,
+      "response200": {
+        "$ref": "#/components/schemas/ThreadPageEncoded"
+      },
+      "errorTags": [
+        {
+          "status": "401",
+          "description": "capy/Unauthorized",
+          "headers": {}
+        },
+        {
+          "status": "403",
+          "description": "capy/Forbidden",
+          "headers": {}
+        },
+        {
+          "status": "404",
+          "description": "capy/ProjectNotFound",
+          "headers": {}
+        },
+        {
+          "status": "429",
+          "description": "capy/RateLimited",
+          "headers": {
+            "retry-after": {
+              "schema": {
+                "type": "integer"
+              },
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    "threads.create": {
+      "method": "POST",
+      "path": "/api/v1/threads",
+      "operationId": "threads.create",
+      "parameters": [],
+      "request": {
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/CreateThreadRequest"
+        },
+        "fields": [
+          "authorId",
+          "captainId",
+          "device",
+          "environmentVariables",
+          "machineSize",
+          "message",
+          "model",
+          "personal",
+          "projectId",
+          "pullRequestAuthor",
+          "requestId",
+          "title",
+          "visibility"
+        ],
+        "requiredFields": [
+          "message",
+          "projectId",
+          "requestId"
+        ]
+      },
+      "response200": {
+        "$ref": "#/components/schemas/ThreadEncoded"
+      },
+      "errorTags": [
+        {
+          "status": "400",
+          "description": "capy/InvalidRequest | ModelSelection.Rejected",
+          "headers": {}
+        },
+        {
+          "status": "401",
+          "description": "capy/Unauthorized",
+          "headers": {}
+        },
+        {
+          "status": "402",
+          "description": "capy/PaidFeatureUnavailable",
+          "headers": {}
+        },
+        {
+          "status": "403",
+          "description": "capy/Forbidden",
+          "headers": {}
+        },
+        {
+          "status": "404",
+          "description": "capy/ProjectNotFound | capy/ThreadNotFound",
+          "headers": {}
+        },
+        {
+          "status": "409",
+          "description": "capy/CrewRefused",
+          "headers": {}
+        },
+        {
+          "status": "429",
+          "description": "capy/RateLimited",
+          "headers": {
+            "retry-after": {
+              "schema": {
+                "type": "integer"
+              },
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    "threads.get": {
+      "method": "GET",
+      "path": "/api/v1/threads/{threadId}",
+      "operationId": "threads.get",
+      "parameters": [
+        {
+          "name": "threadId",
+          "in": "path",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "request": null,
+      "response200": {
+        "$ref": "#/components/schemas/ThreadEncoded"
+      },
+      "errorTags": [
+        {
+          "status": "401",
+          "description": "capy/Unauthorized",
+          "headers": {}
+        },
+        {
+          "status": "403",
+          "description": "capy/Forbidden",
+          "headers": {}
+        },
+        {
+          "status": "404",
+          "description": "capy/ThreadNotFound",
+          "headers": {}
+        },
+        {
+          "status": "429",
+          "description": "capy/RateLimited",
+          "headers": {
+            "retry-after": {
+              "schema": {
+                "type": "integer"
+              },
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    "messages.list": {
+      "method": "GET",
+      "path": "/api/v1/threads/{threadId}/messages",
+      "operationId": "messages.list",
+      "parameters": [
+        {
+          "name": "threadId",
+          "in": "path",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "after",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "allOf": [
+              {
+                "minLength": 26
+              },
+              {
+                "maxLength": 26
+              }
+            ],
+            "description": "Exclusive forward event-ID cursor from cursor. Without either bound, returns the oldest page."
+          },
+          "required": false
+        },
+        {
+          "name": "before",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "allOf": [
+              {
+                "minLength": 26
+              },
+              {
+                "maxLength": 26
+              }
+            ],
+            "description": "Exclusive backward event-ID cursor from beforeCursor. Without after, returns the nearest older page."
+          },
+          "required": false
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "schema": {
+            "type": "integer"
+          },
+          "required": false
+        }
+      ],
+      "request": null,
+      "response200": {
+        "$ref": "#/components/schemas/TranscriptPageEncoded"
+      },
+      "errorTags": [
+        {
+          "status": "401",
+          "description": "capy/Unauthorized",
+          "headers": {}
+        },
+        {
+          "status": "403",
+          "description": "capy/Forbidden",
+          "headers": {}
+        },
+        {
+          "status": "404",
+          "description": "capy/ThreadNotFound",
+          "headers": {}
+        },
+        {
+          "status": "429",
+          "description": "capy/RateLimited",
+          "headers": {
+            "retry-after": {
+              "schema": {
+                "type": "integer"
+              },
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    "messages.send": {
+      "method": "POST",
+      "path": "/api/v1/threads/{threadId}/message",
+      "operationId": "messages.send",
+      "parameters": [
+        {
+          "name": "threadId",
+          "in": "path",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "request": {
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/SendMessageRequest"
+        },
+        "fields": [
+          "clientKey",
+          "delivery",
+          "editOf",
+          "files",
+          "model",
+          "pullRequestAuthor",
+          "switchTo",
+          "text"
+        ],
+        "requiredFields": [
+          "text"
+        ]
+      },
+      "response200": {
+        "$ref": "#/components/schemas/AdmitReceiptEncoded"
+      },
+      "errorTags": [
+        {
+          "status": "400",
+          "description": "ModelSelection.Rejected | capy/InvalidRequest",
+          "headers": {}
+        },
+        {
+          "status": "401",
+          "description": "capy/Unauthorized",
+          "headers": {}
+        },
+        {
+          "status": "403",
+          "description": "capy/DeviceAccessDenied | capy/Forbidden",
+          "headers": {}
+        },
+        {
+          "status": "404",
+          "description": "capy/ThreadNotFound | capy/FileNotFound",
+          "headers": {}
+        },
+        {
+          "status": "409",
+          "description": "capy/EditNotAllowed",
+          "headers": {}
+        },
+        {
+          "status": "429",
+          "description": "capy/RateLimited",
+          "headers": {
+            "retry-after": {
+              "schema": {
+                "type": "integer"
+              },
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    "messages.interrupt": {
+      "method": "POST",
+      "path": "/api/v1/threads/{threadId}/interrupt",
+      "operationId": "messages.interrupt",
+      "parameters": [
+        {
+          "name": "threadId",
+          "in": "path",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "request": null,
+      "response200": {
+        "$ref": "#/components/schemas/AdmitReceiptEncoded"
+      },
+      "errorTags": [
+        {
+          "status": "401",
+          "description": "capy/Unauthorized",
+          "headers": {}
+        },
+        {
+          "status": "403",
+          "description": "capy/Forbidden",
+          "headers": {}
+        },
+        {
+          "status": "404",
+          "description": "capy/ThreadNotFound",
+          "headers": {}
+        },
+        {
+          "status": "429",
+          "description": "capy/RateLimited",
+          "headers": {
+            "retry-after": {
+              "schema": {
+                "type": "integer"
+              },
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    "subagents.list": {
+      "method": "GET",
+      "path": "/api/v1/threads/{threadId}/subagents",
+      "operationId": "subagents.list",
+      "parameters": [
+        {
+          "name": "threadId",
+          "in": "path",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "after",
+          "in": "query",
+          "schema": {
+            "type": "string"
+          },
+          "required": false
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "schema": {
+            "type": "integer"
+          },
+          "required": false
+        }
+      ],
+      "request": null,
+      "response200": {
+        "$ref": "#/components/schemas/SubagentPageEncoded"
+      },
+      "errorTags": [
+        {
+          "status": "401",
+          "description": "capy/Unauthorized",
+          "headers": {}
+        },
+        {
+          "status": "403",
+          "description": "capy/Forbidden",
+          "headers": {}
+        },
+        {
+          "status": "404",
+          "description": "capy/ThreadNotFound",
+          "headers": {}
+        },
+        {
+          "status": "429",
+          "description": "capy/RateLimited",
+          "headers": {
+            "retry-after": {
+              "schema": {
+                "type": "integer"
+              },
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    "subagents.messages": {
+      "method": "GET",
+      "path": "/api/v1/subagents/{subagentId}/messages",
+      "operationId": "subagents.messages",
+      "parameters": [
+        {
+          "name": "subagentId",
+          "in": "path",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "after",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "allOf": [
+              {
+                "minLength": 26
+              },
+              {
+                "maxLength": 26
+              }
+            ]
+          },
+          "required": false
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "schema": {
+            "type": "integer"
+          },
+          "required": false
+        }
+      ],
+      "request": null,
+      "response200": {
+        "$ref": "#/components/schemas/MessagePageEncoded"
+      },
+      "errorTags": [
+        {
+          "status": "401",
+          "description": "capy/Unauthorized",
+          "headers": {}
+        },
+        {
+          "status": "403",
+          "description": "capy/Forbidden",
+          "headers": {}
+        },
+        {
+          "status": "404",
+          "description": "capy/SubagentNotFound",
+          "headers": {}
+        },
+        {
+          "status": "429",
+          "description": "capy/RateLimited",
+          "headers": {
+            "retry-after": {
+              "schema": {
+                "type": "integer"
+              },
+              "required": true
+            }
+          }
+        }
+      ]
+    },
+    "streams.thread": {
+      "method": "GET",
+      "path": "/api/v1/threads/{threadId}/stream",
+      "operationId": "streams.thread",
+      "parameters": [
+        {
+          "name": "threadId",
+          "in": "path",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "last-event-id",
+          "in": "header",
+          "schema": {
+            "type": "string",
+            "description": "The last `id:` a client read; the committed lane resumes after it."
+          },
+          "required": false
+        },
+        {
+          "name": "after",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "description": "Exclusive event-ID cursor to start the committed lane after; the Last-Event-ID header wins when both are present."
+          },
+          "required": false
+        },
+        {
+          "name": "until",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "description": "`run`: close the stream with `done` after the run in progress ends, or at once when the thread is not working."
+          },
+          "required": false
+        },
+        {
+          "name": "frames",
+          "in": "query",
+          "schema": {
+            "type": "string",
+            "description": "`subagent`: send each subagent's lifecycle as a `subagent` frame. Defaults to `task`, the original `task` frame."
+          },
+          "required": false
+        }
+      ],
+      "request": null,
+      "response200": {
+        "$ref": "#/components/schemas/StreamEvent"
+      },
+      "errorTags": [
+        {
+          "status": "400",
+          "description": "capy/InvalidRequest",
+          "headers": {}
+        },
+        {
+          "status": "401",
+          "description": "capy/Unauthorized",
+          "headers": {}
+        },
+        {
+          "status": "403",
+          "description": "capy/Forbidden",
+          "headers": {}
+        },
+        {
+          "status": "404",
+          "description": "capy/ThreadNotFound",
+          "headers": {}
+        },
+        {
+          "status": "429",
+          "description": "capy/RateLimited",
+          "headers": {
+            "retry-after": {
+              "schema": {
+                "type": "integer"
+              },
+              "required": true
+            }
+          }
+        },
+        {
+          "status": "503",
+          "description": "capy/StreamUnavailable",
+          "headers": {}
+        }
+      ]
+    }
+  },
+  "schemas": {
+    "CreateThreadRequest": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "allOf": [
+            {
+              "minLength": 1
+            },
+            {
+              "maxLength": 191
+            }
+          ]
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "environmentVariables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/EnvironmentVariableWrite"
+          },
+          "description": "Write-only environment variables for this thread and its descendants, encrypted at rest. Commands can read the values and outputs are not masked. A replayed requestId preserves the original variables."
+        },
+        "model": {
+          "$ref": "#/components/schemas/ModelSelection",
+          "description": "The model to run. A named model that cannot run answers `ModelSelection.Rejected` and never falls back. Absent, the thread starts on the first default the key's principal can run: a human key's own default, else a service user's default, then the organization default, then Capy's default. The create response's `modelDefault` reports which one. When no default can run, the create answers `ModelSelection.Rejected` naming each default and why."
+        },
+        "machineSize": {
+          "type": "string",
+          "enum": [
+            "small",
+            "medium",
+            "large",
+            "ultra",
+            "hyper",
+            "bigguy"
+          ]
+        },
+        "device": {
+          "$ref": "#/components/schemas/DeviceTarget"
+        },
+        "authorId": {
+          "type": "string"
+        },
+        "visibility": {
+          "type": "string",
+          "enum": [
+            "org",
+            "private"
+          ],
+          "description": "Who can see the thread: `org` for everyone at the organization, `private` for its owner and the people it is shared with. Absent, the owner's own default applies, else the organization's. `private` needs a human owner who may create private work, so a service key must name `authorId`."
+        },
+        "personal": {
+          "type": "boolean"
+        },
+        "pullRequestAuthor": {
+          "type": "string",
+          "enum": [
+            "user",
+            "capy"
+          ],
+          "description": "Who authors this thread's pull requests on GitHub: `capy` for the Capy GitHub App, `user` for the thread's acting human (the `authorId` member, or the key's creator for a service key). Commits and pushes keep the Git identity preference. Absent leaves the preference in charge; a replayed `requestId` keeps the original value."
+        },
+        "captainId": {
+          "type": "string",
+          "description": "A Captain in `projectId` to create the thread in, as a crew thread that reports to it. Absent `visibility`, the thread takes the Captain's. A Captain the key cannot see answers `ThreadNotFound`; a join the Captain's access rules refuse answers `CrewRefused` before the first message is admitted, and a retry with the same `requestId` answers the same refusal."
+        }
+      },
+      "required": [
+        "requestId",
+        "projectId",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "SendMessageRequest": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/MessageFile"
+          },
+          "description": "Files to attach, such as screenshots or screen recordings, each uploaded first through `POST /files`. The files together must stay within 2 GiB."
+        },
+        "model": {
+          "$ref": "#/components/schemas/ModelSelection"
+        },
+        "delivery": {
+          "type": "string",
+          "enum": [
+            "queue",
+            "steer",
+            "interrupt"
+          ],
+          "description": "How the message reaches a working thread. `interrupt` (the default) cuts the running step and makes the message the next input; `steer` lands it at the agent's next step with nothing cancelled; `queue` waits until the current work finishes."
+        },
+        "clientKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "A key you choose for this send, unique per message. A retried send with the same key, from the same key's principal to the same thread, posts nothing new and answers the first send's message id with `deduped: true`."
+        },
+        "editOf": {
+          "type": "string",
+          "allOf": [
+            {
+              "minLength": 26
+            },
+            {
+              "maxLength": 26
+            }
+          ],
+          "description": "Resend one of your earlier messages as a new version. The thread resets to that message before the agent reads the new text; the rows after it stay stored and can be switched back to."
+        },
+        "switchTo": {
+          "type": "string",
+          "allOf": [
+            {
+              "minLength": 26
+            },
+            {
+              "maxLength": 26
+            }
+          ],
+          "description": "Make this superseded version of an edited message live before the send lands, so the message answers on that branch."
+        },
+        "pullRequestAuthor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "user",
+                "capy"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Set the thread's pull request author: `capy` or `user` sets it, null clears it back to the Git identity preference, and absent leaves it unchanged. It applies when the agent picks this message up, so a queued message never changes a pull request opened before it."
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "AdmitReceiptEncoded": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "allOf": [
+            {
+              "minLength": 26
+            },
+            {
+              "maxLength": 26
+            }
+          ]
+        },
+        "deduped": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "deduped"
+      ],
+      "additionalProperties": false
+    },
+    "ProjectListEncoded": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/ProjectEncoded"
+          }
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false
+    },
+    "ThreadPageEncoded": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/ThreadEncoded"
+          }
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\d{1,15}:.+"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "cursor"
+      ],
+      "additionalProperties": false
+    },
+    "TranscriptPageEncoded": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/MessageEncoded"
+          }
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "allOf": [
+                {
+                  "minLength": 26
+                },
+                {
+                  "maxLength": 26
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Opaque exclusive event-ID cursor for after. Stable across compaction. Null when no newer events remain. An unchanged cursor means unsettled messages still block forward paging. Retry after they settle."
+        },
+        "beforeCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "allOf": [
+                {
+                  "minLength": 26
+                },
+                {
+                  "maxLength": 26
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Opaque exclusive event-ID cursor for before. Stable across compaction. Null when no older events remain."
+        }
+      },
+      "required": [
+        "items",
+        "cursor",
+        "beforeCursor"
+      ],
+      "additionalProperties": false
+    },
+    "MessagePageEncoded": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/MessageEncoded"
+          }
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "allOf": [
+                {
+                  "minLength": 26
+                },
+                {
+                  "maxLength": 26
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "cursor"
+      ],
+      "additionalProperties": false
+    },
+    "SubagentPageEncoded": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/SubagentEncoded"
+          }
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "cursor"
+      ],
+      "additionalProperties": false
+    },
+    "SubagentEncoded": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "parentId": {
+          "type": "string"
+        },
+        "subagentPath": {
+          "type": "string"
+        },
+        "taskPath": {
+          "type": "string"
+        },
+        "projectId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "working",
+            "waiting",
+            "idle",
+            "done",
+            "failed"
+          ]
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "usage": {
+          "$ref": "#/components/schemas/UsageTotalsEncoded"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "lastActivityAt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "threadId",
+        "parentId",
+        "subagentPath",
+        "taskPath",
+        "projectId",
+        "title",
+        "status",
+        "archived",
+        "usage",
+        "createdAt",
+        "updatedAt",
+        "lastActivityAt"
+      ],
+      "additionalProperties": false
+    },
+    "MessageEncoded": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "user",
+            "assistant",
+            "tool"
+          ]
+        },
+        "tool": {
+          "type": "string"
+        },
+        "feedbackRequest": {
+          "type": "object",
+          "properties": {
+            "toolCallId": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "proposed",
+                "sent",
+                "declined"
+              ]
+            }
+          },
+          "required": [
+            "toolCallId",
+            "state"
+          ],
+          "additionalProperties": false
+        },
+        "calls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tool": {
+                "type": "string"
+              },
+              "durationMs": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Infinity",
+                      "-Infinity",
+                      "NaN"
+                    ]
+                  }
+                ]
+              }
+            },
+            "required": [
+              "tool",
+              "durationMs"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "text": {
+          "type": "string"
+        },
+        "authorName": {
+          "type": "string"
+        },
+        "sender": {
+          "$ref": "#/components/schemas/MessageSender",
+          "description": "On user entries another agent sent: the thread or subagent that sent it. Absent on messages a person, an integration, or an automation sent, and on the opening task a parent gives its subagent."
+        },
+        "clientKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "editOf": {
+          "type": "string",
+          "allOf": [
+            {
+              "minLength": 26
+            },
+            {
+              "maxLength": 26
+            }
+          ]
+        },
+        "model": {
+          "type": "string"
+        },
+        "modelDefault": {
+          "$ref": "#/components/schemas/DefaultedModel",
+          "description": "On user entries whose sender named no model: the model the message selected and the default that supplied it."
+        },
+        "callId": {
+          "type": "string"
+        },
+        "attachments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "file": {
+                "type": "object",
+                "properties": {
+                  "fileId": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "mediaType": {
+                    "type": "string"
+                  },
+                  "sizeBytes": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "Infinity",
+                          "-Infinity",
+                          "NaN"
+                        ]
+                      }
+                    ]
+                  },
+                  "preview": {
+                    "type": "boolean"
+                  },
+                  "previewBytes": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "Infinity",
+                          "-Infinity",
+                          "NaN"
+                        ]
+                      }
+                    ]
+                  },
+                  "width": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "Infinity",
+                          "-Infinity",
+                          "NaN"
+                        ]
+                      }
+                    ]
+                  },
+                  "height": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "Infinity",
+                          "-Infinity",
+                          "NaN"
+                        ]
+                      }
+                    ]
+                  },
+                  "pageCount": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "sourcePath": {
+                    "type": "string"
+                  },
+                  "contentSha": {
+                    "type": "string"
+                  },
+                  "transcript": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "fileId",
+                  "name",
+                  "mediaType",
+                  "sizeBytes"
+                ],
+                "additionalProperties": false
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "file"
+            ],
+            "additionalProperties": false
+          },
+          "description": "On user entries: the files the message carried. On assistant entries: the files the agent delivered with the message, not every file its turn touched."
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "location": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "sizeBytes": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "Infinity",
+                      "-Infinity",
+                      "NaN"
+                    ]
+                  }
+                ]
+              },
+              "fileId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "location",
+              "path",
+              "version"
+            ],
+            "additionalProperties": false
+          },
+          "description": "On assistant entries: the Capy Drive files the agent delivered by reference, each with its drive location, path, the drive version at delivery, and the id of its copy in `attachments`."
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "source",
+        "text",
+        "createdAt"
+      ],
+      "additionalProperties": false
+    },
+    "ThreadEncoded": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "projectId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "authorId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "previousAuthorId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "titleCustom": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "working",
+            "waiting",
+            "idle",
+            "failed",
+            "archived"
+          ]
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "lastModelId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "modelDefault": {
+          "$ref": "#/components/schemas/DefaultedModel",
+          "description": "On the create response when the request named no `model`: the model the thread starts on and the default that supplied it, with any default skipped because it could not run."
+        },
+        "queuedAt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "linearIssue": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/ThreadLinearIssue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pullRequestAuthor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "user",
+                "capy"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Who authors this thread's pull requests on GitHub: `capy` for the Capy GitHub App, `user` for the thread's acting human. Null means the acting human's Git identity preference decides."
+        },
+        "usage": {
+          "$ref": "#/components/schemas/UsageTotalsEncoded"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "lastActivityAt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hasUnreads": {
+          "type": "boolean"
+        },
+        "mentionCount": {
+          "type": "integer"
+        },
+        "owed": {
+          "type": "boolean"
+        },
+        "needsYou": {
+          "type": "boolean"
+        },
+        "ask": {
+          "$ref": "#/components/schemas/ThreadAsk"
+        },
+        "crewNeedsYou": {
+          "type": "integer"
+        },
+        "participated": {
+          "type": "boolean"
+        },
+        "crewMentionCount": {
+          "type": "integer"
+        },
+        "captain": {
+          "$ref": "#/components/schemas/ThreadCaptain"
+        },
+        "crewCount": {
+          "type": "integer"
+        },
+        "member": {
+          "type": "boolean"
+        },
+        "subscribed": {
+          "type": "boolean"
+        },
+        "personal": {
+          "type": "boolean"
+        },
+        "visibility": {
+          "type": "string",
+          "enum": [
+            "org",
+            "private"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "projectId",
+        "authorId",
+        "previousAuthorId",
+        "title",
+        "titleCustom",
+        "status",
+        "archived",
+        "lastModelId",
+        "queuedAt",
+        "linearIssue",
+        "pullRequestAuthor",
+        "usage",
+        "createdAt",
+        "updatedAt",
+        "lastActivityAt",
+        "hasUnreads",
+        "mentionCount",
+        "owed",
+        "member"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
