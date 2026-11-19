@@ -21,5 +21,5 @@ Writes are off by default. The non-secret Options example is `{"allowWrites": fa
 ## Release and metadata
 
 - `scripts/pack-release.ts` creates a stable top-level `magpie-capy/` folder and rewrites archive/gzip entry times to the real build clock or an explicit non-future `SOURCE_DATE_EPOCH`.
-- The final archive is `magpie-capy-0.2.1.tgz`; old 0.2 and 0.1 release artifacts were preserved separately outside the public repo.
+- The current archive is `magpie-capy-0.2.2.tgz`; the immutable `v0.2.1` archive and the older 0.2/0.1 artifacts are preserved separately outside the public repo.
 - Native local-folder version/license/date display may differ from npm registry cards and from browser timezone rendering. The manifest and archive improve what they can; host-native metadata remains a limit.

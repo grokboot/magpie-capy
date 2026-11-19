@@ -1,6 +1,6 @@
 {
   "name": "magpie-capy",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Capy 任务平台工具：项目、线程、子代理、消息与有界 SSE；支持 Magpie 内配置组织 API Key，写入默认关闭。",
   "type": "module",
   "main": "./index.ts",

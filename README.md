@@ -1,4 +1,4 @@
-# magpie-capy 0.2.1
+# magpie-capy 0.2.2
 
 **Capy 任务平台工具（非模型提供方） · MIT 源码许可 · 品牌归属见 `docs/attribution.md`**
 
@@ -8,21 +8,29 @@
 
 ## 安装
 
-从 GitHub 安装：
+首选官方 CLI 的 GitHub 规格安装：
+
+```bash
+magpie plugin add github:grokboot/magpie-capy
+```
+
+桌面版：**插件 → 添加插件 → GitHub**，填入 `grokboot/magpie-capy`。
+
+`Discover` 页会把本插件标为 **Unofficial**：GitHub 上的 `magpie-plugin` topic 是官方支持的未审阅收录路径，本插件不在官方审核列表内，也不是 Capy 或 Magpie 官方插件。GitHub 搜索已能索引到该仓库；Magpie 的应用内缓存约 10 分钟，Discover 的 GUI 显示仍在验证中。
+
+发布归档同样可用，顶层文件夹固定为 `magpie-capy/`，无需手动改名：
+
+```bash
+tar -xzf magpie-capy-0.2.2.tgz
+magpie plugin add ./magpie-capy
+```
+
+开发时也可直接装源码目录：
 
 ```bash
 git clone https://github.com/grokboot/magpie-capy
 magpie plugin add ./magpie-capy
 ```
-
-发布归档的顶层文件夹同样固定为 `magpie-capy/`，无需手动改名：
-
-```bash
-tar -xzf magpie-capy-0.2.1.tgz
-magpie plugin add ./magpie-capy
-```
-
-桌面版：**插件 → 添加插件**，选择解压后的 `magpie-capy` 文件夹。开发时也可直接选源码目录。
 
 ## 配置 API Key（真正的 Magpie 登录/配置）
 
@@ -60,13 +68,13 @@ magpie plugin add ./magpie-capy
 ## 宿主边界
 
 - 本地文件夹详情与 npm registry 卡片元数据来源不同；仅靠 manifest 不能完全补齐 registry 版本/许可证/摘要展示。
-- 最终 0.2.1 tgz 使用真实构建时间（或显式非未来 `SOURCE_DATE_EPOCH`）；从本地文件夹复制仍可能沿用文件系统时间。
+- 最终 0.2.2 tgz 使用真实构建时间（或显式非未来 `SOURCE_DATE_EPOCH`）；从本地文件夹复制仍可能沿用文件系统时间。
 - “隐藏”、MCP 路由、按智能体授权和 Provider 徽标均由 Magpie 宿主控制。
 
 ## 测试与限制
 
-`bun run check`、`bun run check:openapi`、`npm pack --dry-run`。测试只使用合成密钥和 mock fetch；没有真实 Capy API 凭证，未宣称真实 API 端到端成功。父级 GUI 验收已覆盖 0.2.1 提取归档的图标、中文 README、版本/MIT、Options 和登录/取消流程。
+`bun run check`、`bun run check:openapi`、`npm pack --dry-run`。测试只使用合成密钥和 mock fetch；没有真实 Capy API 凭证，未宣称真实 API 端到端成功。GUI 验收已在 0.2.1 提取归档上覆盖图标、中文 README、版本/MIT、Options 和登录/取消流程；0.2.2 只改版本元数据、文档与测试，尚未做新的 GUI 验收。归档测试直接校验 tar 头 epoch，并在 UTC、Asia/Shanghai、America/Los_Angeles 三种时区下验证条目元数据一致。
 
 ## English
 
-A Magpie task-tool plugin for Capy projects, threads, subagents, messages, and bounded SSE. Capy is a task platform, not an inference provider. The `Provider` badge is Magpie's zero-model auth namespace for the API-key sign-in; tools are offered separately through MCP. Configure the organization key in **Plugins → Capy（任务工具）** or use `CAPY_API_KEY`; writes stay off unless `allowWrites` is saved in Options or `CAPY_ALLOW_WRITES=true`, and every write still needs `confirm:true`. Parent UI acceptance on the extracted 0.2.1 artifact covered the icon, Chinese README, version/MIT, Options `false`, and the organization-key dialog opened/cancelled without a credential. No real Capy API credential or live API success is claimed. See `docs/ux-auth-exposure.md`, `README.zh-CN.md`, and `SECURITY.md` for details and host limits.
+A Magpie task-tool plugin for Capy projects, threads, subagents, messages, and bounded SSE. Capy is a task platform, not an inference provider. The `Provider` badge is Magpie's zero-model auth namespace for the API-key sign-in; tools are offered separately through MCP. Configure the organization key in **Plugins → Capy（任务工具）** or use `CAPY_API_KEY`; writes stay off unless `allowWrites` is saved in Options or `CAPY_ALLOW_WRITES=true`, and every write still needs `confirm:true`. Install with `magpie plugin add github:grokboot/magpie-capy`, or in the app via **Plugins → Add plugin → GitHub**. `Discover` labels the plugin **Unofficial**: the GitHub `magpie-plugin` topic is the officially supported unreviewed route, and the repo is indexed by GitHub search, but the app cache is about ten minutes and the in-app Discover display is still pending GUI verification. GUI acceptance on the 0.2.1 artifact covered the icon, Chinese README, version/MIT, Options `false`, and the organization-key dialog opened/cancelled without a credential. 0.2.2 changes only version metadata, docs, and tests, so it has no new GUI pass yet. No real Capy API credential or live API success is claimed. See `docs/ux-auth-exposure.md`, `README.zh-CN.md`, and `SECURITY.md` for details and host limits.

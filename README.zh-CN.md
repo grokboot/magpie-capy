@@ -1,4 +1,4 @@
-# magpie-capy 0.2.1
+# magpie-capy 0.2.2
 
 Capy 任务平台工具（非模型提供方）。在 Magpie 中配置组织 API Key 后，智能体可读取项目、线程、子代理、消息，并以有界时间观察线程 SSE；写入默认关闭。
 
@@ -6,21 +6,29 @@ Capy 任务平台工具（非模型提供方）。在 Magpie 中配置组织 API
 
 ## 安装
 
-从 GitHub 安装：
+首选官方 CLI 的 GitHub 规格安装：
 
 ```bash
-git clone https://github.com/grokboot/magpie-capy
-magpie plugin add ./magpie-capy
+magpie plugin add github:grokboot/magpie-capy
 ```
+
+桌面版：**插件 → 添加插件 → GitHub**，填入 `grokboot/magpie-capy`。
+
+`Discover` 页会把本插件标为 **Unofficial**：GitHub 上的 `magpie-plugin` topic 是官方支持的未审阅收录路径，本插件不在官方审核列表内，也不是 Capy 或 Magpie 官方插件。GitHub 搜索已能索引到该仓库；Magpie 应用内缓存约 10 分钟，Discover 的 GUI 显示仍在验证中。
 
 发布归档解压后的顶层文件夹同样固定为 `magpie-capy/`：
 
 ```bash
-tar -xzf magpie-capy-0.2.1.tgz
+tar -xzf magpie-capy-0.2.2.tgz
 magpie plugin add ./magpie-capy
 ```
 
-桌面版：选择解压后的 `magpie-capy` 文件夹；开发时也可选源码目录。添加、更新、开关插件会重启插件宿主；修改源码后关闭再开启插件。
+开发时也可直接装源码目录：
+
+```bash
+git clone https://github.com/grokboot/magpie-capy
+magpie plugin add ./magpie-capy
+```添加、更新、开关插件会重启插件宿主；修改源码后关闭再开启插件。
 
 ## 配置 API Key
 
@@ -71,4 +79,6 @@ export CAPY_ALLOW_WRITES=true
 
 - 运行：`bun run check`、`bun run check:openapi`、`npm pack --dry-run`。
 - 测试只使用合成密钥和 mock fetch，不发起真实 Capy 请求。
-- 父级 GUI 验收已覆盖 0.2.1 提取归档的图标、中文 README、版本/MIT、Options `false` 持久化和登录/取消流程；未使用真实 Capy API 凭证，未验证真实 API 端到端成功。详见 `docs/compatibility.md`、`docs/ux-auth-exposure.md`。
+- GUI 验收已在 0.2.1 提取归档上覆盖图标、中文 README、版本/MIT、Options `false` 持久化和登录/取消流程；0.2.2 只改版本元数据、文档与测试，尚未做新的 GUI 验收。
+- 未使用真实 Capy API 凭证，未验证真实 API 端到端成功。
+- 归档测试直接校验 tar 头 epoch，并在 UTC、Asia/Shanghai、America/Los_Angeles 三种时区下验证条目元数据一致，不依赖本地时区显示。详见 `docs/compatibility.md`、`docs/ux-auth-exposure.md`。

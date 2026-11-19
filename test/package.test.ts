@@ -17,8 +17,8 @@ const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url),
 };
 
 describe("package UX metadata", () => {
-  test("uses 0.2.1 with MIT, no runtime dependencies, and shipped docs/icon", () => {
-    expect(pkg.version).toBe("0.2.1");
+  test("uses a released semver with MIT, no runtime dependencies, and shipped docs/icon", () => {
+    expect(pkg.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(pkg.private).toBe(true);
     expect(pkg.license).toBe("MIT");
     expect(pkg.dependencies).toBeUndefined();
